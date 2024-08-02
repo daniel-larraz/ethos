@@ -9,19 +9,10 @@ jobs:
         include:
         - name: linux-x86_64
           os: ubuntu-20.04
-          shell: bash
         - name: macOS-x86_64
           os: macos-13
-          shell: bash
         - name: macOS-arm64
           os: macos-14
-          shell: bash
-        - name: windows-x86_64
-          os: windows-latest
-          shell: 'msys2 {0}'
-    defaults:
-      run:
-        shell: ${{ matrix.shell }}
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -47,25 +38,10 @@ jobs:
         brew install \
           gmp
 
-    - name: Install Packages (Windows)
-      uses: msys2/setup-msys2@v2
-      if: runner.os == 'Windows'
-      with:
-        msystem: mingw64
-        path-type: inherit
-        install: |
-          make
-          mingw-w64-x86_64-cmake
-          mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-gmp
-
     - name: Build
       run: |
         mkdir build
         cd build
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
-          export CMAKE_GENERATOR="MSYS Makefiles"
-        fi
         cmake -DCMAKE_BUILD_TYPE=Release ..
         if [[ "$RUNNER_OS" == "macOS" ]]; then
           num_proc=$(( $(sysctl -n hw.logicalcpu) + 1 ))
