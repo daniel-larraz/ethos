@@ -48,9 +48,11 @@ jobs:
         else
           num_proc=$(( $(nproc) + 1 ))
         fi
+        echo "num_proc=${num_proc}" >> $GITHUB_ENV
+        echo "Num proc: ${num_proc}"
         make -j${num_proc}
 
     - name: Run tests
-      run: ctest --output-on-failure
+      run: ctest -j${num_proc} --output-on-failure
       working-directory: build
   
