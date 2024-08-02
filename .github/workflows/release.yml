@@ -63,8 +63,16 @@ jobs:
       run: |
         mkdir build
         cd build
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          export CMAKE_GENERATOR="MSYS Makefiles"
+        fi
         cmake -DCMAKE_BUILD_TYPE=Release ..
-        make -j2
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          num_proc=$(( $(sysctl -n hw.logicalcpu) + 1 ))
+        else
+          num_proc=$(( $(nproc) + 1 ))
+        fi
+        make -j${num_proc}
 
     - name: Run tests
       run: ctest --output-on-failure
