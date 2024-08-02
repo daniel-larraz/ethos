@@ -23,50 +23,50 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-  name: ${{ matrix.name }}
-  runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
 
-  steps:
-  - name: Checkout code
-    uses: actions/checkout@v4
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-  - name: Install Packages (Linux)
-    if: runner.os == 'Linux'
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y \
-        libgmp-dev
+    - name: Install Packages (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgmp-dev
 
-  - name: Set MACOSX_DEPLOYMENT_TARGET
-    if: runner.os == 'macOS'
-    run: echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+    - name: Set MACOSX_DEPLOYMENT_TARGET
+      if: runner.os == 'macOS'
+      run: echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
 
-  - name: Install Packages (macOS)
-    if: runner.os == 'macOS'
-    run: |
-      brew install \
-        gmp
+    - name: Install Packages (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install \
+          gmp
 
-  - name: Install Packages (Windows)
-    uses: msys2/setup-msys2@v2
-    if: runner.os == 'Windows'
-    with:
-      msystem: mingw64
-      path-type: inherit
-      install: |
-        make
-        mingw-w64-x86_64-cmake
-        mingw-w64-x86_64-gcc
-        mingw-w64-x86_64-gmp
+    - name: Install Packages (Windows)
+      uses: msys2/setup-msys2@v2
+      if: runner.os == 'Windows'
+      with:
+        msystem: mingw64
+        path-type: inherit
+        install: |
+          make
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-gmp
 
-  - name: Build
-    run: |
-      mkdir build
-      cd build
-      cmake -DCMAKE_BUILD_TYPE=Release ..
-      make -j2
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        make -j2
 
-  - name: Run tests
-    run: ctest --output-on-failure
-    working-directory: build
+    - name: Run tests
+      run: ctest --output-on-failure
+      working-directory: build
   
