@@ -9,6 +9,11 @@ endmacro()
 
 project (ethos_checker)
 
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set (CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 find_package(GMP REQUIRED)
@@ -22,7 +27,6 @@ endif()
 
 add_cxx_flag("-Wall")
 add_cxx_flag("-Wno-deprecated")
-add_cxx_flag("-std=gnu++17")
 
 if(WIN32)
   add_definitions(-DUSE_CPP_FILESYSTEM)
