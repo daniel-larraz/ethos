@@ -52,6 +52,13 @@ Filepath::Filepath(const char* rawPath)
 #endif
 }
 
+#ifdef USE_CPP_FILESYSTEM
+Filepath::Filepath(std::filesystem::path rawPath)
+{
+  this->rawPath = rawPath;
+}
+#endif
+
 Filepath::~Filepath() {}
 
 bool Filepath::isAbsolute() const

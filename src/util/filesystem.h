@@ -39,6 +39,10 @@ class Filepath
    */
   Filepath(const char* rawPath);
 
+#ifdef USE_CPP_FILESYSTEM
+  Filepath(std::filesystem::path rawPath);
+#endif
+
   ~Filepath();
 
   /**
