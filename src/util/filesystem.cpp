@@ -207,7 +207,13 @@ Filepath Filepath::parentPath() const
 #endif
 }
 
-std::string Filepath::getRawPath() const { return this->rawPath; }
+std::string Filepath::getRawPath() const {
+#ifndef USE_CPP_FILESYSTEM
+  return this->rawPath;
+#else
+  return this->rawPath.string();
+#endif
+}
 
 bool operator<(const Filepath& a, const Filepath& b)
 {
