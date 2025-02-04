@@ -41,9 +41,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set MACOSX_DEPLOYMENT_TARGET
-      if: runner.os == 'macOS'
-      run: echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+    # - name: Set MACOSX_DEPLOYMENT_TARGET
+    #   if: runner.os == 'macOS'
+    #   run: echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
 
     - name: Install Packages (Linux)
       if: runner.os == 'Linux'
@@ -72,7 +72,7 @@ jobs:
 
     - name: Build
       run: |
-        ./configure.sh ${{ matrix.build-type  }}
+        ./configure.sh ${{ matrix.build-type  }} --static
         cd build
         make -j2
 
