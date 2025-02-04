@@ -10,7 +10,7 @@ jobs:
         build-type: [ release, debug ]
         include:
         - name: linux-x86_64
-          os: ubuntu-24.04
+          os: ubuntu-latest
           shell: bash
         - name: linux-arm64
           os: ubuntu-22.04-arm
@@ -78,14 +78,22 @@ jobs:
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-gmp
 
+    - name: Set up num_proc variable
+      run: |
+        if [ "${{ runner.os }}" = "macOS" ]; then
+          echo "num_proc=$(( $(sysctl -n hw.logicalcpu) + 1 ))" >> $GITHUB_ENV
+        else
+          echo "num_proc=$(( $(nproc) + 1 ))" >> $GITHUB_ENV
+        fi
+
     - name: Build
       run: |
         ./configure.sh ${{ matrix.build-type  }} --static
         cd build
-        make -j2
+        make -j${{ env.num_proc }}
 
     - name: Test
-      run: ctest --output-on-failure
+      run: ctest -j${{ env.num_proc }} --output-on-failure
       working-directory: build
 
     - name: Upload artifact
