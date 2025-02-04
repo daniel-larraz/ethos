@@ -15,7 +15,9 @@ option(BUILD_SHARED_LIBS          "Build shared libraries and binary")
 option(ENABLE_ORACLES             "Enable support for Oracles" ON)
 
 if(NOT BUILD_SHARED_LIBS)
-  set(CMAKE_EXE_LINKER_FLAGS "-static")
+  if(NOT APPLE)
+    set(CMAKE_EXE_LINKER_FLAGS "-static")
+  endif()
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 endif()
 
