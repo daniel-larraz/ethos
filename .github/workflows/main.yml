@@ -83,7 +83,6 @@ jobs:
     - name: Upload artifact
       if: |
         github.event_name == 'push' &&
-        #github.ref == 'refs/heads/main' &&
         matrix.build-type == 'release'
       uses: ./.github/actions/upload-artifact
       with:
