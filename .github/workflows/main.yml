@@ -10,7 +10,7 @@ jobs:
         build-type: [ release, debug ]
         include:
         - name: linux-x86_64
-          os: ubuntu-20.04
+          os: ubuntu-24.04
           shell: bash
         - name: linux-arm64
           os: ubuntu-22.04-arm
