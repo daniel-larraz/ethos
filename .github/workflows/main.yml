@@ -49,11 +49,14 @@ jobs:
       if: runner.os == 'macOS'
       run: echo "MACOSX_DEPLOYMENT_TARGET=12.0" >> $GITHUB_ENV
 
-    - name: Install GMP 6.3.0 for macOS 12.0 (monterey)
+    - name: Install Packages (macOS)
       if: runner.os == 'macOS'
       run: |
+        # Install GMP 6.3.0 bottle for macOS 12.0 (monterey)
+        # Ensure compatibility with older versions of macOS
         GMP_BOTTLE=gmp-6.3.0.${{ matrix.bottle-suffix }}.bottle.tar.gz
-        curl -L -H "Authorization: Bearer QQ==" -o $GMP_BOTTLE https://ghcr.io/v2/homebrew/core/gmp/blobs/sha256:${{ matrix.gmp-sha256 }}
+        curl -L -H "Authorization: Bearer QQ==" -o $GMP_BOTTLE \
+          https://ghcr.io/v2/homebrew/core/gmp/blobs/sha256:${{ matrix.gmp-sha256 }}
         brew reinstall -f $GMP_BOTTLE
 
     - name: Install Packages (Linux)
@@ -62,12 +65,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           libgmp-dev
-
-    - name: Install Packages (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        brew install \
-          gmp
 
     - name: Install Packages (Windows)
       uses: msys2/setup-msys2@v2
