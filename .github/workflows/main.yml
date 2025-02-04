@@ -17,9 +17,13 @@ jobs:
           shell: bash
         - name: macOS-x86_64
           os: macos-13
+          bottle-suffix: monterey
+          gmp-sha256: b04023f65b8c79c45798a4bfd97fdbeb10f1bf9e8416e22e8eeedbd9b2a8c102
           shell: bash
         - name: macOS-arm64
           os: macos-14
+          bottle-suffix: arm64_monterey
+          gmp-sha256: 2115b33b8b4052f91ffb85e476c7fc0388cf4e614af1ce6453b35e6d25473911
           shell: bash
         - name: windows-x86_64
           os: windows-latest
@@ -41,9 +45,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # - name: Set MACOSX_DEPLOYMENT_TARGET
-    #   if: runner.os == 'macOS'
-    #   run: echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+    - name: Set MACOSX_DEPLOYMENT_TARGET
+      if: runner.os == 'macOS'
+      run: echo "MACOSX_DEPLOYMENT_TARGET=12.0" >> $GITHUB_ENV
+
+    - name: Install GMP 6.3.0 for macOS 12.0 (monterey)
+      if: runner.os == 'macOS'
+      run: |
+        GMP_BOTTLE=gmp-6.3.0.${{ matrix.bottle-suffix }}.bottle.tar.gz
+        curl -L -H "Authorization: Bearer QQ==" -o $GMP_BOTTLE https://ghcr.io/v2/homebrew/core/gmp/blobs/sha256:${{ matrix.gmp-sha256 }}
+        brew reinstall -f $GMP_BOTTLE
 
     - name: Install Packages (Linux)
       if: runner.os == 'Linux'
