@@ -51,17 +51,49 @@ class Run:
     max_rss_kb: int
 
 
+def find_gnu_time():
+    """Returns the path of GNU time, or None.
+
+    Peak memory has to be measured through it. A process started from Python
+    is a copy of the Python process, and Linux keeps a process's peak RSS
+    across exec, so wait4 on it reports at least Python's own size (about
+    30 MiB). GNU time is small, and it reads the peak of the process it
+    starts.
+    """
+    path = shutil.which("time")
+    if not path:
+        return None
+    try:
+        out = subprocess.run([path, "--version"], capture_output=True,
+                             text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return path if "GNU" in out.stdout + out.stderr else None
+
+
+GNU_TIME = find_gnu_time()
+
+# Part of the reference cache key: change it whenever the way time or memory
+# is measured changes, so that cached figures are not mixed with new ones.
+MEASUREMENT = "gnu-time-1" if GNU_TIME else "wait4-1"
+
+
 def run_binary(binary, args, cwd, timeout):
     """Runs `binary args` in `cwd`; returns its output, time and peak RSS.
 
     Output goes to temporary files rather than pipes so that a process
-    producing a lot of output cannot block. The child is reaped with wait4 to
-    get its own resource usage.
+    producing a lot of output cannot block. The peak RSS comes from GNU time
+    when it is installed (see find_gnu_time), and otherwise from wait4, which
+    overstates it by the size of the Python process.
     """
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, \
+            tempfile.NamedTemporaryFile("r") as rss_file:
+        command = [str(binary), *args]
+        if GNU_TIME:
+            command = [GNU_TIME, "-q", "-f", "%M", "-o", rss_file.name, *command]
         start = time.monotonic()
         proc = subprocess.Popen(
-            [str(binary), *args],
+            command,
             cwd=cwd,
             stdin=subprocess.DEVNULL,
             stdout=out,
@@ -89,6 +121,13 @@ def run_binary(binary, args, cwd, timeout):
         maxrss = rusage.ru_maxrss
         if sys.platform == "darwin":  # bytes on macOS, KiB on Linux
             maxrss //= 1024
+        if GNU_TIME and not timed_out:
+            # GNU time passes the exit status through; a signal becomes
+            # 128 + its number. Both are non-zero, as before.
+            try:
+                maxrss = int(rss_file.read().strip().splitlines()[-1])
+            except (ValueError, IndexError):
+                pass  # keep the wait4 figure
         out.seek(0)
         err.seek(0)
         return Run(
@@ -230,7 +269,8 @@ def root_fingerprint(root):
 
 def cache_key(ref_sha, case, timeout):
     parts = [ref_sha, case.name, " ".join(case.args), case.cwd,
-             sha256_file(case.path), root_fingerprint(case.root), str(timeout)]
+             sha256_file(case.path), root_fingerprint(case.root), str(timeout),
+             MEASUREMENT]
     return hashlib.sha256("\0".join(parts).encode()).hexdigest()
 
 
@@ -374,6 +414,9 @@ def cmd_run(args):
               f"({100 * ct / rt if rt else 0:.0f}%)")
         print(f"largest peak memory: reference {rm / 1024:.1f} MiB, "
               f"candidate {cm / 1024:.1f} MiB")
+        if not GNU_TIME:
+            print("note: GNU time not found; peak memory includes the "
+                  "harness's own Python process (about 30 MiB)")
         if args.jobs > 1:
             print("note: timings with --jobs > 1 are noisy; use --jobs 1 "
                   "--no-cache to compare speed")
@@ -384,6 +427,7 @@ def cmd_run(args):
             "reference_sha256": ref_sha,
             "candidate": str(cand_bin),
             "timeout_s": args.timeout,
+            "measurement": MEASUREMENT,
             "cases": [
                 {
                     "name": case.name,

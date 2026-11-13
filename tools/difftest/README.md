@@ -5,7 +5,8 @@ inputs and reports every input on which they behave differently. It exists to
 check a reimplementation of Ethos against the C++ checker: the candidate
 matches the reference when `difftest.py run` reports no differences.
 
-It needs Python 3.12 or later and nothing outside the standard library.
+It needs Python 3.12 or later and nothing outside the standard library, plus
+GNU `time` for accurate memory figures (see "Performance").
 Everything it builds or generates goes under `work/`, which git ignores.
 
 ## Quick start
@@ -112,14 +113,22 @@ execute only the candidate. A cache entry is keyed on:
 - the main input's SHA-256;
 - the size and modification time of every file under the case's root
   (`tests/` or the corpus);
-- the timeout.
+- the timeout;
+- how time and memory are measured.
 
 Use `--no-cache` to rerun the reference anyway.
 
 ## Performance
 
 `run` also reports total time and the largest peak memory, over the cases
-where both checkers succeeded the same way. Those figures are only useful
+where both checkers succeeded the same way.
+
+Peak memory is measured through GNU `time` (`time -f %M`), which reads the
+peak of the process it starts. Without GNU `time`, `run` falls back to `wait4`
+and says so: that figure is at least the size of the harness's Python process
+(about 30 MiB), because each binary starts as a copy of that process and Linux
+keeps a process's peak across `exec`. Found by the pathos milestone-1 session:
+it reported 31 MiB for a run that `/usr/bin/time` measured at 3 MiB. Those figures are only useful
 with `--jobs 1 --no-cache`. With parallel jobs, or with cached reference
 timings from another run, the comparison is noise: in one test, a candidate
 that differed only in one arithmetic line showed as 214% slower.
