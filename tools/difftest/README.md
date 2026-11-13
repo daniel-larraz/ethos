@@ -128,6 +128,13 @@ Use `--no-cache` to rerun the reference anyway.
 `run` also reports total time and the largest peak memory, over the cases
 where both checkers succeeded the same way.
 
+Wall time is exact: `run` blocks until the process exits, and a timer kills
+it on timeout. Each run includes a constant 7 to 8 ms for starting the
+process, the same for both binaries, so ratios for very short runs lean
+towards 100%. Earlier versions polled with growing sleeps instead, which
+rounded times up to 32, 64, 114 ms and so on; the pathos gate-5 session found
+this.
+
 Peak memory is measured through GNU `time` (`time -f %M`), which reads the
 peak of the process it starts. Without GNU `time`, `run` falls back to `wait4`
 and says so: that figure is at least the size of the harness's Python process

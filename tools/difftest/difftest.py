@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -76,7 +77,7 @@ GNU_TIME = find_gnu_time()
 # Part of the reference cache key: change it whenever the way time or memory
 # is measured, or output is decoded, changes, so that cached results are not
 # mixed with new ones.
-MEASUREMENT = ("gnu-time-1" if GNU_TIME else "wait4-1") + "/bytes-1"
+MEASUREMENT = ("gnu-time-1" if GNU_TIME else "wait4-1") + "/bytes-1/blocking-wait-1"
 
 
 def run_binary(binary, args, cwd, timeout):
@@ -101,23 +102,33 @@ def run_binary(binary, args, cwd, timeout):
             stderr=err,
             start_new_session=True,
         )
-        timed_out = False
-        delay = 0.001
-        while True:
-            pid, status, rusage = os.wait4(proc.pid, os.WNOHANG)
-            if pid:
-                break
-            if time.monotonic() - start > timeout:
-                timed_out = True
+        # Block in wait4 so that the wall time is exact; a timer kills the
+        # process group on timeout. (Polling with growing sleeps rounded
+        # times up to the next poll: 33 ms read as 64 ms.)
+        lock = threading.Lock()
+        state = {"reaped": False, "timed_out": False}
+
+        def kill():
+            with lock:
+                if state["reaped"]:
+                    return
+                state["timed_out"] = True
                 try:
                     os.killpg(proc.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-                pid, status, rusage = os.wait4(proc.pid, 0)
-                break
-            time.sleep(delay)
-            delay = min(delay * 2, 0.05)
-        wall = time.monotonic() - start
+
+        timer = threading.Timer(timeout, kill)
+        timer.daemon = True
+        timer.start()
+        try:
+            pid, status, rusage = os.wait4(proc.pid, 0)
+        finally:
+            wall = time.monotonic() - start
+            with lock:
+                state["reaped"] = True
+            timer.cancel()
+        timed_out = state["timed_out"]
         proc.returncode = os.waitstatus_to_exitcode(status)
         maxrss = rusage.ru_maxrss
         if sys.platform == "darwin":  # bytes on macOS, KiB on Linux
