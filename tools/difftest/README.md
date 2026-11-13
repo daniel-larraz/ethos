@@ -69,9 +69,27 @@ deliberately: it defines what "the same" means.
   too; the checkers must agree on those as well. `tests/smtlib/` holds cvc5
   inputs and is skipped. Today: 230 cases.
 - **cvc5 proofs** (`--corpus`, repeatable): the `proofs/*.cpc` files of a
-  corpus made by `gen-proofs`. Today: 400 cases.
+  corpus made by `gen-proofs`, named `<corpus directory>/<file>`, for example
+  `corpus/regress0__uf__cnf_abc.cpc`. Today: 400 cases, plus 43 in the corpus
+  of large proofs.
 
-Options other than the defaults are not exercised yet.
+## Option variants
+
+By default every case runs once, with Ethos's default options.
+`--all-option-sets` also runs every case with each option set to its
+non-default value, one at a time, and once with all eight together:
+
+`--no-parse-let`, `--no-print-dag`, `--no-rule-sym-table`,
+`--no-normalize-dec`, `--no-normalize-hex`, `--normalize-num`,
+`--require-proof-of-false`, `--reference-define-fun`
+
+That is ten runs per case. `--options '<opts>'` (repeatable) adds a set of
+your own. A variant's name ends in ` [<options>]`, for example
+`tests/simple.eo [--no-print-dag]`, which `--filter` can match.
+
+Not covered: `--stats`, `--stats-all` and `--stats-compact`, whose output
+contains timings that differ between runs; `--help` and `--show-config`;
+and `--include=` and `--reference=`, which take a file.
 
 ## The proof corpus
 
@@ -107,6 +125,22 @@ Current corpus: cvc5 `2107a00359cb` (main, 2026-11-13). 400 proofs from 52
 regression directories in 29 top-level areas (bv, sets, strings, quantifiers,
 arith, nl and others): 394 `correct` and 6 `incomplete` (proofs with trusted
 steps). The largest proof is 3.4 MB.
+
+## A corpus of large proofs
+
+The default corpus comes from `regress0` and `regress1`, where most proofs are
+small: the largest takes Ethos about a second. For performance, and for
+behaviour that only shows on large inputs, build a second corpus of large
+proofs and pass both with `--corpus`:
+
+```sh
+./difftest.py gen-proofs --cvc5 /path/to/cvc5 --cvc5-src /path/to/cvc5-checkout \
+    --out work/corpus-large --levels regress1,regress2,regress3,regress4 \
+    --min-bytes 1000000 --limit 60 --timeout 300
+```
+
+`--min-bytes` keeps only proofs of at least that many bytes. Generating it
+runs cvc5 on every unsat benchmark of those levels and takes a long time.
 
 ## Reference cache
 
@@ -162,6 +196,11 @@ Two self-tests, on 2026-11-13, against reference `9217112f`:
      but those 17 were not inspected one by one.
 
    The mutant test ran on an earlier corpus, made with cvc5 `1fb1038`.
+
+3. **Option variants, reference against itself:** 6,300 runs (630 cases with
+   ten option sets each), 0 differences. One run takes Ethos 179 s, because
+   `--no-print-dag` makes it print 1.77 GB of error output; option runs need a
+   timeout well above the default 120 s.
 
 To repeat test 2, copy `work/ref/<rev>/src`, change one line, build it with
 `cmake -S . -B ../build -DCMAKE_BUILD_TYPE=Release`, and run it as `--cand`.
