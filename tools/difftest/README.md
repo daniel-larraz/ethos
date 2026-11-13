@@ -39,7 +39,7 @@ The output is reduced to three parts, which must all be equal:
 | Part | Rule |
 | --- | --- |
 | Outcome | `correct`, `incomplete`, `success-other` (exit 0 without a verdict line), `error` (any non-zero exit or signal) or `timeout`. The exact exit code and signal are **not** compared. |
-| stderr | Compared line by line, with trailing whitespace and leading and trailing blank lines removed. The C++ line `Fatal failure within <function> at <file>:<line>` is dropped first: it names C++ source code. |
+| stderr | Compared byte for byte, line by line (lines end at `\n` only), after removing trailing spaces, tabs and `\r`, and leading and trailing blank lines. The C++ line `Fatal failure within <function> at <file>:<line>` is dropped first: it names C++ source code. |
 | stdout | Compared the same way, **except when the outcome is `error`**. The C++ checker aborts on errors, so its buffered stdout is lost at that point. |
 
 What this means for a reimplementation:
@@ -51,6 +51,11 @@ What this means for a reimplementation:
   dumping core.
 - A panic or crash is an `error` outcome whose message differs from the
   reference, so it is reported.
+
+Bytes are compared exactly, including bytes that are not valid UTF-8, and
+non-ASCII whitespace such as U+00A0 is never trimmed: Ethos works on bytes, so
+a reimplementation that handles text differently must show up. In printed
+diffs, such bytes and characters appear as `\xNN` or `\uNNNN`.
 
 The logic is in `normalize()` in `difftest.py`. Change it there, and only
 deliberately: it defines what "the same" means.

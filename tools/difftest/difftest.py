@@ -74,8 +74,9 @@ def find_gnu_time():
 GNU_TIME = find_gnu_time()
 
 # Part of the reference cache key: change it whenever the way time or memory
-# is measured changes, so that cached figures are not mixed with new ones.
-MEASUREMENT = "gnu-time-1" if GNU_TIME else "wait4-1"
+# is measured, or output is decoded, changes, so that cached results are not
+# mixed with new ones.
+MEASUREMENT = ("gnu-time-1" if GNU_TIME else "wait4-1") + "/bytes-1"
 
 
 def run_binary(binary, args, cwd, timeout):
@@ -133,8 +134,11 @@ def run_binary(binary, args, cwd, timeout):
         return Run(
             exit_code=proc.returncode,
             timed_out=timed_out,
-            stdout=out.read().decode("utf-8", errors="replace"),
-            stderr=err.read().decode("utf-8", errors="replace"),
+            # surrogateescape keeps every byte: invalid UTF-8 bytes become
+            # distinct code points instead of all becoming U+FFFD, so two
+            # outputs compare equal only if their bytes are equal.
+            stdout=out.read().decode("utf-8", errors="surrogateescape"),
+            stderr=err.read().decode("utf-8", errors="surrogateescape"),
             wall_s=wall,
             max_rss_kb=maxrss,
         )
@@ -151,7 +155,10 @@ FATAL_LOCATION_RE = re.compile(r"^Fatal failure within .* at .*:\d+$")
 
 
 def _clean_lines(text):
-    lines = [line.rstrip() for line in text.splitlines()]
+    # Only "\n" ends a line and only space, tab and "\r" are trimmed. Python's
+    # splitlines() and strip() also act on Unicode characters such as U+0085
+    # and U+00A0, which would hide differences in exactly those characters.
+    lines = [line.rstrip(" \t\r") for line in text.split("\n")]
     while lines and not lines[0]:
         lines.pop(0)
     while lines and not lines[-1]:
@@ -330,8 +337,19 @@ def describe_diff(case_name, ref, cand, diffs):
                 if i >= 40:
                     lines.append("    ... (diff truncated; see the JSON report)")
                     break
-                lines.append("    " + line[:300])
+                lines.append("    " + printable(line[:300]))
     return "\n".join(lines)
+
+
+def printable(text):
+    """Shows bytes that are not valid UTF-8 as \\xNN, and non-printable
+    characters such as U+00A0 as \\xNN or \\uNNNN, so that they can be printed
+    and told apart."""
+    text = text.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+    return "".join(
+        c if c.isprintable() or c == "\t" else c.encode("unicode_escape").decode("ascii")
+        for c in text
+    )
 
 
 def cmd_run(args):
