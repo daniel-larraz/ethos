@@ -692,6 +692,8 @@ def cmd_build_ref(args):
     binary = out / "build" / "src" / "ethos"
     if binary.exists() and not args.force:
         print(binary)
+        if args.eoc:
+            print(build_ref_eoc(out, args.jobs))
         return 0
     if out.exists():
         shutil.rmtree(out)
@@ -719,7 +721,30 @@ def cmd_build_ref(args):
     )
     (out / "REVISION").write_text(rev + "\n")
     print(binary)
+    if args.eoc:
+        print(build_ref_eoc(out, args.jobs))
     return 0
+
+
+def build_ref_eoc(out, jobs):
+    """Builds ethos-eoc (Ethos with its compiler plugins, plugins/) of the
+    reference in <out>/build-eoc. The build also compiles eoc's semantics
+    configuration into <out>/src/tools/eoc/out; eoc.py leaves that out of
+    the source tree it copies for each run."""
+    binary = out / "build-eoc" / "ethos-eoc"
+    if binary.exists():
+        return binary
+    subprocess.run(
+        ["cmake", "-S", str(out / "src" / "plugins"), "-B", str(out / "build-eoc"),
+         "-DCMAKE_BUILD_TYPE=Release"],
+        check=True, stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["cmake", "--build", str(out / "build-eoc"), "--target", "ethos-eoc",
+         "-j", str(jobs)],
+        check=True, stdout=subprocess.DEVNULL,
+    )
+    return binary
 
 
 # ---------------------------------------------------------------------------
@@ -958,6 +983,8 @@ def main():
     p.add_argument("--out", default=str(DEFAULT_WORK / "ref"))
     p.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 1)
     p.add_argument("--force", action="store_true", help="rebuild if present")
+    p.add_argument("--eoc", action="store_true",
+                   help="also build ethos-eoc (for the eoc subcommand)")
     p.set_defaults(func=cmd_build_ref)
 
     p = sub.add_parser("gen-proofs", help="generate a cvc5 proof corpus")
@@ -981,6 +1008,8 @@ def main():
 
     import fuzz  # differential fuzzing: fuzz.py, next to this file
     fuzz.add_parsers(sub, sys.modules[__name__])
+    import eoc  # the Eunoia compiler: eoc.py, next to this file
+    eoc.add_parsers(sub, sys.modules[__name__])
 
     args = parser.parse_args()
     sys.exit(args.func(args))

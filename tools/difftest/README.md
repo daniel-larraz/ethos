@@ -221,6 +221,47 @@ Ethos crash.
 Four of the groups are accepted differences: `eo::` operators evaluated
 without an argument they read.
 
+## The Eunoia compiler (eoc)
+
+`eoc` (in `eoc.py`) compares `ethos-eoc`, Ethos built with its compiler
+plugins (`plugins/`), with a candidate. `build-ref <rev> --eoc` also builds
+the reference's `ethos-eoc` in `work/ref/<rev>/build-eoc/`.
+
+```sh
+./difftest.py eoc --ref work/ref/<rev>/build-eoc/ethos-eoc \
+    --cand /path/to/candidate-eoc --src work/ref/<rev>/src
+```
+
+- **Cases:** eoc's driver, `tools/eoc/driver.py` of the reference source,
+  run on every file of `tests/` that declares a rule and on
+  `tools/eoc/test/nary-nil.eo`, under the test semantics
+  `tools/eoc/test/semantics.eos`: `desugar` and `desugar --natives=eo` on
+  each signature, and `vc`, `vc --sygus`, `lean` and `trim-defs` on each rule
+  (1,052 cases, about 110 s). Named `eoc/<signature>/<run>[/<rule>]`.
+  `--signature` (repeatable) compiles other signatures instead.
+- **Runs:** each case runs once per binary, in a fresh copy of the reference
+  source (without `tools/eoc/out/`), with the binary as the build
+  directory's `ethos-eoc` and `ETHOS_PLUGIN_ROOT` and
+  `ETHOS_PLUGIN_OUTPUT_DIR` pointing into that copy. The driver is called
+  with `--no-build` and `--skip-cvc5`.
+- **Compared:** the outcome (`ok`, `error`, `timeout`), the driver's stdout
+  and stderr (without the C++ `Fatal failure within` line), and every file
+  of the source tree and the build directory after the run, byte for byte,
+  including the stage files under `tools/eoc/out/` and the plugins' files
+  under `<build>/out/plugins/`. The run's directory is written `<root>`.
+- **Checks of the harness:** `ethos-eoc` against a copy of itself agrees on
+  all 1,052 cases (872 ok, 180 errors, such as `no model semantics found for
+  String`). A wrapper that appends a line to `model_smt_gen.eo` after each
+  stage, and one that writes an extra file, are both reported.
+- **Not covered:** the CPC signature with its real semantics, which are in
+  the logos repository (`<logos>/install/defs/Cpc.eos`); under the test
+  semantics every CPC rule ends in an error (`--signature
+  work/corpus/cpc/Cpc.eo`). `lean --all` and `batch`, and the cvc5 parse
+  checks of the generated SMT-LIB.
+
+`eoc-keep <case> --binary <bin> --src <src> --out <dir>` runs one case with
+one binary and keeps its directory, to look at what it wrote.
+
 ## Reference cache
 
 `run` caches the reference's results in `work/ref-cache.json`, so repeated runs
