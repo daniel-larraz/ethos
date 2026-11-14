@@ -71,6 +71,42 @@ WINDOWS = os.name == "nt"
 EXE = ".exe" if WINDOWS else ""
 
 
+def platform_name():
+    """The platform as Ethos's CI names it: linux, macOS or windows, then
+    x86_64 or arm64."""
+    import platform
+    system = {"win32": "windows", "darwin": "macOS"}.get(sys.platform, "linux")
+    machine = platform.machine().lower()
+    arch = {"amd64": "x86_64", "x86_64": "x86_64", "arm64": "arm64",
+            "aarch64": "arm64"}.get(machine, machine)
+    return f"{system}-{arch}"
+
+
+PLATFORM = platform_name()
+
+# Differences of `run` cases kept on purpose, on some platforms only:
+# accepted-run.json maps a case name to {"platforms": [...], "reason": ...,
+# "reference_starts_with": [...], "candidate": {outcome, stdout, stderr}}.
+# A case passes there when the reference's stderr starts with one of the
+# given texts and the candidate's normalized output is exactly the recorded
+# one; any other change (in either binary) is a difference again.
+ACCEPTED_RUN_FILE = HERE / "accepted-run.json"
+
+
+def load_accepted_run():
+    try:
+        entries = json.loads(ACCEPTED_RUN_FILE.read_text())
+    except FileNotFoundError:
+        return {}
+    return {name: e for name, e in entries.items() if PLATFORM in e["platforms"]}
+
+
+def is_accepted(entry, ref_n, cand_n):
+    first = "\n".join(ref_n["stderr"])
+    return (any(first.startswith(t) for t in entry["reference_starts_with"])
+            and cand_n == entry["candidate"])
+
+
 def disable_core_dumps():
     """Ethos aborts on every error. Never let that write core files into
     the working directories (the repository, the corpus): children inherit
@@ -678,6 +714,8 @@ def cmd_run(args):
         return case, key, ref_run, cached, cand_run
 
     results = []
+    accepted_run = load_accepted_run()
+    accepted = []
     started = time.monotonic()
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         futures = [pool.submit(work, c) for c in cases]
@@ -688,6 +726,10 @@ def cmd_run(args):
             ref_n = normalize(ref_run, case.args)
             cand_n = normalize(cand_run, case.args)
             diffs = compare(ref_n, cand_n)
+            entry = accepted_run.get(case.name)
+            if diffs and entry and is_accepted(entry, ref_n, cand_n):
+                accepted.append(case.name)
+                diffs = []
             results.append((case, ref_run, cand_run, ref_n, cand_n, diffs))
             if not args.quiet and sys.stderr.isatty():
                 print(f"\r{i}/{len(cases)}", end="", file=sys.stderr, flush=True)
@@ -712,6 +754,9 @@ def cmd_run(args):
     print()
     print(f"cases: {len(results)}  same: {len(results) - len(differing)}  "
           f"different: {len(differing)}  ({elapsed:.1f} s)")
+    if accepted:
+        print(f"of the same: {len(accepted)} accepted differences on {PLATFORM} "
+              f"({ACCEPTED_RUN_FILE.name}): {', '.join(sorted(accepted))}")
     print("reference outcomes: " +
           ", ".join(f"{k} {v}" for k, v in sorted(by_outcome.items())))
 
@@ -728,7 +773,9 @@ def cmd_run(args):
               f"({100 * ct / rt if rt else 0:.0f}%)")
         print(f"largest peak memory: reference {rm / 1024:.1f} MiB, "
               f"candidate {cm / 1024:.1f} MiB")
-        if not GNU_TIME:
+        if WINDOWS:
+            print("note: peak memory is not measured on Windows")
+        elif not GNU_TIME:
             print("note: GNU time not found; peak memory includes the "
                   "harness's own Python process (about 30 MiB)")
         if args.jobs > 1:

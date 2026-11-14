@@ -274,11 +274,12 @@ def make_contexts(root, tests_dir, corpus_dir):
 CRASH_CODES = {
     132: "SIGILL", 135: "SIGBUS", 136: "SIGFPE", 137: "SIGKILL", 139: "SIGSEGV",
     -4: "SIGILL", -7: "SIGBUS", -8: "SIGFPE", -9: "SIGKILL", -11: "SIGSEGV",
-    # Windows: NTSTATUS exception codes as exit statuses (an abort, by
-    # contrast, is exit status 3, an ordinary error)
+    # Windows: NTSTATUS exception codes as exit statuses. An abort, Ethos's
+    # ordinary way to stop on an error, is not among them: it is exit status
+    # 3 with the MSVCRT runtime (MINGW64) and 0xC0000409, a fast fail, with
+    # the UCRT one (CLANGARM64), which is why that code is left out.
     0xC0000005: "ACCESS_VIOLATION", 0xC00000FD: "STACK_OVERFLOW",
     0xC000001D: "ILLEGAL_INSTRUCTION", 0xC0000094: "INTEGER_DIVIDE_BY_ZERO",
-    0xC0000409: "STACK_BUFFER_OVERRUN",
 }
 
 _MASK_PATH = re.compile(r"/\S*?(\.eo|\.cpc|\.smt2)")

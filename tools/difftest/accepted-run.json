@@ -1,0 +1,72 @@
+{
+ "cli/include-missing": {
+  "platforms": [
+   "windows-x86_64",
+   "windows-arm64"
+  ],
+  "reason": "Ethos resolves the path with std::filesystem::canonical, which throws for a missing file on Windows, and does not catch the exception; pathos reports the error instead.",
+  "reference_starts_with": [
+   "terminate called after throwing an instance of 'std::filesystem::",
+   "libc++abi: terminating due to uncaught exception of type std::__1::__fs::filesystem::filesystem_error"
+  ],
+  "candidate": {
+   "outcome": "error",
+   "stdout": [],
+   "stderr": [
+    "Couldn't open file: missing.eo"
+   ]
+  }
+ },
+ "cli/missing-file": {
+  "platforms": [
+   "windows-x86_64",
+   "windows-arm64"
+  ],
+  "reason": "Ethos resolves the path with std::filesystem::canonical, which throws for a missing file on Windows, and does not catch the exception; pathos reports the error instead.",
+  "reference_starts_with": [
+   "terminate called after throwing an instance of 'std::filesystem::",
+   "libc++abi: terminating due to uncaught exception of type std::__1::__fs::filesystem::filesystem_error"
+  ],
+  "candidate": {
+   "outcome": "error",
+   "stdout": [],
+   "stderr": [
+    "Couldn't open file: missing.cpc"
+   ]
+  }
+ },
+ "cli/reference-missing": {
+  "platforms": [
+   "windows-x86_64",
+   "windows-arm64"
+  ],
+  "reason": "Ethos resolves the path with std::filesystem::canonical, which throws for a missing file on Windows, and does not catch the exception; pathos reports the error instead.",
+  "reference_starts_with": [
+   "terminate called after throwing an instance of 'std::filesystem::",
+   "libc++abi: terminating due to uncaught exception of type std::__1::__fs::filesystem::filesystem_error"
+  ],
+  "candidate": {
+   "outcome": "error",
+   "stdout": [],
+   "stderr": [
+    "Couldn't open file: missing.smt2"
+   ]
+  }
+ },
+ "cli/include-empty": {
+  "platforms": [
+   "windows-x86_64"
+  ],
+  "reason": "Ethos resolves the path with std::filesystem::canonical, which throws for a missing file on Windows, and does not catch the exception; pathos reports the error instead. (libstdc++'s canonical(\"\") throws; libc++'s, on windows-arm64, does not, and there pathos has to match Ethos's error.)",
+  "reference_starts_with": [
+   "terminate called after throwing an instance of 'std::filesystem::"
+  ],
+  "candidate": {
+   "outcome": "error",
+   "stdout": [],
+   "stderr": [
+    "Couldn't open file:"
+   ]
+  }
+ }
+}
