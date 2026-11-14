@@ -411,6 +411,14 @@ CLI_CASES = [
     ("stdin", ["--include=sig.eo"], "proof.cpc"),
     ("stdin-error", ["--include=sig.eo"], "proof-bad.cpc"),
     ("stdin-includes", [], "proof-includes.cpc"),
+    # 0xFF, and other bytes above 127: Ethos reads a file with an istream of
+    # char, so 0xFF is EOF where char is signed (x86-64) and a byte where it
+    # is unsigned (arm64), and reads standard input with istream::get, where
+    # 0xFF is never EOF.
+    ("stdin-ff", ["--include=sig.eo"], "proof-ff.cpc"),
+    ("file-ff", ["--include=sig.eo", "proof-ff.cpc"], None),
+    ("stdin-high-bytes", ["--include=sig.eo"], "proof-high.cpc"),
+    ("file-high-bytes", ["--include=sig.eo", "proof-high.cpc"], None),
     ("without-include", ["proof.cpc"], None),
     ("include", ["--include=sig.eo", "proof.cpc"], None),
     ("include-after-file", ["proof.cpc", "--include=sig.eo"], None),

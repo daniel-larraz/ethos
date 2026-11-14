@@ -1,0 +1,9 @@
+; Bytes above 127 (0x80, 0xC3 0xA9, 0xFE) in a symbol, after a valid proof.
+; Run with --include=sig.eo.
+(declare-const a Bool)
+(declare-const b Bool)
+(assume @p0 (and a (not (not b))))
+(step @p1 a :rule and_elim1 :premises (@p0))
+(step @p2 (not (not b)) :rule and_elim2 :premises (@p0))
+(step @p3 b :rule not_not_elim :premises (@p2))
+(declare-const x€Ã©þ Bool)

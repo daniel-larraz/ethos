@@ -1,0 +1,10 @@
+; A 0xFF byte after the steps (see CLI_CASES): end of input for Ethos only where
+; a C char is signed and the input is a file. Run with --include=sig.eo.
+(declare-const a Bool)
+(declare-const b Bool)
+(assume @p0 (and a (not (not b))))
+(step @p1 a :rule and_elim1 :premises (@p0))
+(step @p2 (not (not b)) :rule and_elim2 :premises (@p0))
+(step @p3 b :rule not_not_elim :premises (@p2))
+ÿ
+(step @p4 a :rule not_not_elim :premises (@p2))
