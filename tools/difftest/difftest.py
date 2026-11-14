@@ -195,7 +195,8 @@ def normalize_stats(lines):
     """The statistics of --stats, --stats-all and --stats-compact as compared.
 
     Kept: every line's shape, the rules and programs listed, and how many
-    times each was used. Masked as <n>: times, percentages and the counters
+    times each was used, except a count of 7 digits or more in the rule
+    table, which runs into the time after it. Masked as <n>: times, percentages and the counters
     of Ethos's term store (mkExprCount, deleteExprCount, ...), which
     depend on how terms are stored. The rows are sorted by name, since Ethos
     orders them by time."""
@@ -216,8 +217,16 @@ def normalize_stats(lines):
                 items = [i.rsplit(": ", 1)[0] + ": <n>" for i in items]
             out.append(f"{m[1]} = {{ {', '.join(sorted(items))} }}")
         elif (m := _STATS_ROW.match(line)) and not line.startswith("="):
-            rest = " ".join(_NUMBER.sub("<n>", m[3] or "").split())
-            rows.append(f"{m[1].strip()}: {m[2]} {rest}".rstrip())
+            # The columns have fixed widths, which a long number fills, and
+            # then it runs into the next one: a count of 7 digits into the
+            # time, a time of 9 into the next column. So spaces are dropped,
+            # and a count that ran into the time (the row goes on with
+            # " (<percent>)") is masked with it.
+            count, rest = m[2], m[3] or ""
+            if rest.lstrip().startswith("("):
+                count = "<n>"
+            rest = "".join(_NUMBER.sub("<n>", rest).split())
+            rows.append(f"{m[1].strip()}: {count} {rest}".rstrip())
         else:
             flush()
             out.append(line)
