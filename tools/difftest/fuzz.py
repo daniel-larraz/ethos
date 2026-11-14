@@ -488,11 +488,12 @@ def cmd_fuzz_replay(dt, args):
     import resource
     soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
     resource.setrlimit(resource.RLIMIT_CORE, (0, hard))
-    still, fixed, crashes = [], [], []
+    still, fixed, crashes, skipped = [], [], [], []
     for d in sorted(p for p in findings.iterdir() if (p / "info.json").exists()):
         info = json.loads((d / "info.json").read_text())
         if info["context"] not in ctx:
-            raise SystemExit(f"error: {d.name} needs --{info['context']}")
+            skipped.append(d.name)  # needs --tests or --corpus, not given
+            continue
         fdir, cwd = ctx[info["context"]]
         path = fdir / f"fuzz-w0{info['suffix']}"
         shutil.copyfile(d / f"input{info['suffix']}", path)
@@ -511,7 +512,8 @@ def cmd_fuzz_replay(dt, args):
                 print(dt.describe_diff(f"{d.name} ({info['seed']})", ref_n, cand_n,
                                        dt.compare(ref_n, cand_n) or ["outcome"]))
     print(f"findings: {len(still)} still differ, {len(fixed)} fixed, "
-          f"{len(crashes)} Ethos crashes (not compared)")
+          f"{len(crashes)} Ethos crashes (not compared)"
+          + (f", {len(skipped)} skipped (need --tests or --corpus)" if skipped else ""))
     return 1 if still else 0
 
 
