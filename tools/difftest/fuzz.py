@@ -285,16 +285,26 @@ def _mask(line):
     return _MASK_NUM.sub("0", line)[:100]
 
 
+def _exhausted(run):
+    """The run ran out of time or of memory (--memory): a mutant on which
+    both binaries do counts as agreeing, whichever limit each one hit."""
+    return run.timed_out or run.out_of_memory
+
+
 def classify(dt, ref_run, cand_run):
     """Returns (category, signature) for a pair of runs, or None if they
     agree. The signature groups findings that are probably the same bug."""
-    if ref_run.timed_out and cand_run.timed_out:
+    if _exhausted(ref_run) and _exhausted(cand_run):
         return None
     ref_n, cand_n = dt.normalize(ref_run), dt.normalize(cand_run)
     if ref_run.timed_out:
         category = "reference-timeout"
     elif cand_run.timed_out:
         category = "candidate-timeout"
+    elif ref_run.out_of_memory:
+        category = "reference-out-of-memory"
+    elif cand_run.out_of_memory:
+        category = "candidate-out-of-memory"
     elif ref_run.exit_code in CRASH_CODES:
         category = "reference-crash"   # an Ethos bug; not for the candidate to match
     elif cand_run.exit_code in CRASH_CODES or any("panicked at" in l for l in cand_n["stderr"]):
@@ -334,8 +344,10 @@ class Fuzzer:
 
     def run_pair(self, path, cwd, options):
         a = [*options, str(path)]
-        ref = self.dt.run_binary(self.args.ref, a, str(cwd), self.args.timeout)
-        cand = self.dt.run_binary(self.args.cand, a, str(cwd), self.args.timeout)
+        ref = self.dt.run_binary(self.args.ref, a, str(cwd), self.args.timeout,
+                                 memory_mb=getattr(self.args, "memory", None))
+        cand = self.dt.run_binary(self.args.cand, a, str(cwd), self.args.timeout,
+                                  memory_mb=getattr(self.args, "memory", None))
         return ref, cand
 
     def worker(self, wid, deadline, iterations):
@@ -355,7 +367,7 @@ class Fuzzer:
             with self.lock:
                 self.runs += 1
                 if result is None:
-                    if ref.timed_out and cand.timed_out:
+                    if _exhausted(ref) and _exhausted(cand):
                         self.both_timeout += 1
                     else:
                         self.agree += 1
@@ -470,7 +482,7 @@ def cmd_fuzz(dt, args):
         "findings": [{k: f.get(k) for k in ("id", "category", "count", "seed", "options", "signature")}
                      for f in summary],
     }, indent=1))
-    print(f"{fz.runs} runs: {fz.agree} agree, {fz.both_timeout} time out on both, "
+    print(f"{fz.runs} runs: {fz.agree} agree, {fz.both_timeout} run out of time or memory on both, "
           f"{sum(f['count'] for f in summary)} differ, in {len(summary)} groups")
     for f in summary:
         print(f"  {f.get('id', '?'):12}  {f['category']:28} x{f['count']:<5} "
@@ -606,6 +618,9 @@ def add_parsers(sub, dt):
     p.add_argument("--seed", default="0", help="random seed (default 0)")
     p.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 1)
     p.add_argument("--timeout", type=float, default=10, help="seconds per run (default 10)")
+    p.add_argument("--memory", type=int, default=4096,
+                   help="address-space limit per run, in MiB (default 4096; 0: none). "
+                        "A runaway mutant then stops one run instead of the campaign"),
     p.add_argument("--option-rate", type=float, default=0.15,
                    help="share of mutants run under a non-default option set")
     p.add_argument("--no-minimize", dest="minimize", action="store_false")

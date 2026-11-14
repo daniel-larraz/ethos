@@ -53,6 +53,13 @@ class Run:
     stderr: str
     wall_s: float
     max_rss_kb: int
+    out_of_memory: bool = False  # hit run_binary's memory_mb (and aborted)
+
+
+# How Ethos (a C++ std::bad_alloc) and a Rust binary (the default allocation
+# error handler) stop when an allocation fails.
+OUT_OF_MEMORY_RE = re.compile(r"std::bad_alloc|^memory allocation of \d+ bytes failed",
+                              re.MULTILINE)
 
 
 def find_gnu_time():
@@ -83,19 +90,23 @@ GNU_TIME = find_gnu_time()
 MEASUREMENT = ("gnu-time-1" if GNU_TIME else "wait4-1") + "/bytes-1/blocking-wait-1"
 
 
-def run_binary(binary, args, cwd, timeout, stdin=None):
+def run_binary(binary, args, cwd, timeout, stdin=None, memory_mb=None):
     """Runs `binary args` in `cwd`; returns its output, time and peak RSS.
 
     Output goes to temporary files rather than pipes so that a process
     producing a lot of output cannot block. The peak RSS comes from GNU time
     when it is installed (see find_gnu_time), and otherwise from wait4, which
     overstates it by the size of the Python process. `stdin` is a file to
-    read standard input from; by default it is empty.
+    read standard input from; by default it is empty. `memory_mb` limits
+    the address space (with prlimit); a run that fails an allocation under
+    it is marked out_of_memory.
     """
     with open(stdin or os.devnull, "rb") as stdin_file, \
             tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, \
             tempfile.NamedTemporaryFile("r") as rss_file:
         command = [str(binary), *args]
+        if memory_mb:
+            command = ["prlimit", f"--as={memory_mb << 20}", "--", *command]
         if GNU_TIME:
             command = [GNU_TIME, "-q", "-f", "%M", "-o", rss_file.name, *command]
         start = time.monotonic()
@@ -147,16 +158,19 @@ def run_binary(binary, args, cwd, timeout, stdin=None):
                 pass  # keep the wait4 figure
         out.seek(0)
         err.seek(0)
+        # surrogateescape keeps every byte: invalid UTF-8 bytes become
+        # distinct code points instead of all becoming U+FFFD, so two
+        # outputs compare equal only if their bytes are equal.
+        stderr = err.read().decode("utf-8", errors="surrogateescape")
         return Run(
             exit_code=proc.returncode,
             timed_out=timed_out,
-            # surrogateescape keeps every byte: invalid UTF-8 bytes become
-            # distinct code points instead of all becoming U+FFFD, so two
-            # outputs compare equal only if their bytes are equal.
             stdout=out.read().decode("utf-8", errors="surrogateescape"),
-            stderr=err.read().decode("utf-8", errors="surrogateescape"),
+            stderr=stderr,
             wall_s=wall,
             max_rss_kb=maxrss,
+            out_of_memory=bool(memory_mb) and not timed_out and proc.returncode != 0
+                          and OUT_OF_MEMORY_RE.search(stderr) is not None,
         )
 
 
