@@ -1,0 +1,3 @@
+(declare-parameterized-const = ((T Type)) (-> Bool) :chainable T)(declare-const d Bool)
+
+(assume a1 (= d)

@@ -1,0 +1,53 @@
+{
+ "signature": "differ-stderr|*** Bad number of arguments provided in function call to (substitute x y x)|*** Bad number of arguments provided in function call to (substitute x y x)",
+ "category": "differ-stderr",
+ "count": 13,
+ "seed": "tests/substitution-binary-only.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 12, iteration 17983",
+ "id": "e081f9cc584f",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a a]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a a]",
+   "Error: <ctx>/tests/fuzz-w12.eo:30.42: A step of rule eq-subs failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (substitute a b))) (_ (_ (_ (_ (_ (_ (_ (_ (substitute a b false)) (substitute a a))) _v0)) _v0)) _v0))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a a]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a b]",
+   "*** Bad number of arguments provided in function call to (substitute x y x)",
+   "  Arguments: [substitute a a]",
+   "Error: <ctx>/tests/fuzz-w12.eo:30.42: A step of rule eq-subs failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (substitute a b))) (_ (_ (_ (_ (_ (_ (_ (_ (substitute a b false)) (substitute a a))) _v0)) _v0)) _v0))"
+  ],
+  "exit_code": 1
+ }
+}

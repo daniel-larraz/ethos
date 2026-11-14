@@ -1,0 +1,34 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Type checking failed:|Error: <file>:0.0: Type checking failed:",
+ "category": "differ-stderr",
+ "count": 33,
+ "seed": "tests/nground-nil-ex.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--no-normalize-dec"
+ ],
+ "iteration": "worker 4, iteration 162",
+ "id": "cebe255ce77d",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w4.eo:16.44: Type checking failed:",
+   "Expression: (_ (_ bvor a) (_ (_ bvor b) #b0000))",
+   "Message: No type rule declared for literal kind BINARY; use declare-consts to declare its type before use"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w4.eo:16.44: Type checking failed:",
+   "Expression: (_ (_ bvor a) (_ (_ bvor b) (eo::nil bvor (BitVec 4))))",
+   "Message: Non-function (_ bvor b) as head of APPLY",
+   "Its type is (BitVec 4)"
+  ],
+  "exit_code": 1
+ }
+}

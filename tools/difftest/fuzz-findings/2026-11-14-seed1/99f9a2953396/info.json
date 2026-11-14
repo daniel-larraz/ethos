@@ -1,0 +1,28 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected EOF or LPAREN, got `|(declare-const Int` (UNTERMINATED_QUOTED_SYMBOL).|Error: <file>:0.0: Expected EOF or LPAREN, got `|(declare-const Int\u0000 Type)",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/pf-simple-sig-2.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 2, iteration 28953",
+ "id": "99f9a2953396",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w2.eo:1.1: Expected EOF or LPAREN, got `|(declare-const Int` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w2.eo:1.1: Expected EOF or LPAREN, got `|(declare-const Int\u0000 Type)",
+   "` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 1
+ }
+}

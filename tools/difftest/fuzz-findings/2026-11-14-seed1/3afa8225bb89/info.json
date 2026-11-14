@@ -1,0 +1,30 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|) (` (UNTERMINATED_QUOTED_SYMBOL).|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|) (\u0000 x x)))",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/type-var-exists.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 5, iteration 15735",
+ "id": "3afa8225bb89",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w5.eo:3.28: Expected LPAREN or RPAREN, got `|) (` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w5.eo:3.28: Expected LPAREN or RPAREN, got `|) (\u0000 x x)))",
+   "",
+   "",
+   "` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 1
+ }
+}

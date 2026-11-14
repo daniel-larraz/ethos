@@ -1,0 +1,25 @@
+{
+ "signature": "candidate-timeout|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments|timeout",
+ "category": "candidate-timeout",
+ "count": 2,
+ "seed": "tests/ite-compile-test.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 2, iteration 19451",
+ "id": "61b51e877e36",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 1 arguments"
+  ],
+  "exit_code": 139
+ },
+ "candidate": {
+  "outcome": "timeout",
+  "stdout": [],
+  "stderr": [],
+  "exit_code": -9
+ }
+}

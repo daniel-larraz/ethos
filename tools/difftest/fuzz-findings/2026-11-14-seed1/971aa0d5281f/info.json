@@ -1,0 +1,29 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\"Pair T)|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\"Pair T)",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/or-list-null-term.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 8, iteration 15469",
+ "id": "971aa0d5281f",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w8.eo:1.32: Expected SMT-LIBv2 term, got `\"Pair T)",
+   "   ` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w8.eo:1.32: Expected SMT-LIBv2 term, got `\"Pair T)",
+   "   \u0000` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

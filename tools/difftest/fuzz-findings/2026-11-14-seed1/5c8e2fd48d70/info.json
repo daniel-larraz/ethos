@@ -1,0 +1,29 @@
+{
+ "signature": "reference-crash|SIGSEGV",
+ "category": "reference-crash",
+ "count": 287,
+ "seed": "tests/requires.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 0, iteration 80",
+ "id": "5c8e2fd48d70",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 1 arguments"
+  ],
+  "exit_code": 139
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 1 arguments",
+   "Error: <ctx>/tests/fuzz-w0.eo:27.51: A step of rule and_elim failed to check.",
+   "Evaluation failed: (eo::requires P)"
+  ],
+  "exit_code": 1
+ }
+}

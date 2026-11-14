@@ -1,0 +1,33 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `\")|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `\")",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/opaque-inst.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 3, iteration 41878",
+ "id": "685fd2339c1f",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w3.eo:1.55: Expected KEYWORD or RPAREN, got `\")",
+   "",
+   "",
+   "` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w3.eo:1.55: Expected KEYWORD or RPAREN, got `\")",
+   "",
+   "",
+   "\u0000` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

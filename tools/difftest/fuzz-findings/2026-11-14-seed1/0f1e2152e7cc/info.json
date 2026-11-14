@@ -1,0 +1,37 @@
+{
+ "signature": "differ-stderr|*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))|*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))",
+ "category": "differ-stderr",
+ "count": 2,
+ "seed": "tests/or-no-desugar.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--no-parse-let"
+ ],
+ "iteration": "worker 3, iteration 4632",
+ "id": "0f1e2152e7cc",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))",
+   "  Arguments: [substitute-over-or c b]",
+   "Error: <ctx>/tests/fuzz-w3.eo:15.70: Expected SMT-LIBv2 term, got `` (EOF)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))",
+   "  Arguments: [substitute-over-or c b]",
+   "*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))",
+   "  Arguments: [substitute-over-or c b]",
+   "*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))",
+   "  Arguments: [substitute-over-or c b]",
+   "Error: <ctx>/tests/fuzz-w3.eo:15.70: Expected SMT-LIBv2 term, got `` (EOF)."
+  ],
+  "exit_code": 1
+ }
+}

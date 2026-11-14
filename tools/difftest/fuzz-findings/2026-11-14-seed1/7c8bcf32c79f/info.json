@@ -1,0 +1,29 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const Int Type)|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const Int Type)",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/simple.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 4, iteration 29617",
+ "id": "7c8bcf32c79f",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w4.eo:1.2: Expected Eunoia command, got `\"declare-const Int Type)",
+   "` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w4.eo:1.2: Expected Eunoia command, got `\"declare-const Int Type)",
+   "\u0000` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

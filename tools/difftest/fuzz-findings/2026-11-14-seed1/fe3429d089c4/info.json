@@ -1,0 +1,29 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 operator, got `\"not @t0))|Error: <file>:0.0: Expected SMT-LIBv0 operator, got `\"not @t0))",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "corpus/regress0__uf__distinct-true.cpc",
+ "context": "corpus",
+ "suffix": ".cpc",
+ "options": [],
+ "iteration": "worker 1, iteration 13455",
+ "id": "fe3429d089c4",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/corpus/proofs/fuzz-w1.cpc:1.15: Expected SMT-LIBv2 operator, got `\"not @t1))",
+   "` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/corpus/proofs/fuzz-w1.cpc:1.15: Expected SMT-LIBv2 operator, got `\"not @t1))",
+   "\u0000` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

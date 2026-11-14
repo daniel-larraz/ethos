@@ -1,0 +1,47 @@
+(declare-const Int Type)
+(declare-consts <numeral> Int)
+
+(declare-parameterized-const = ((T Type :implicit)) (-> T T Bool))
+(declare-const + (-> Int Int Int))
+(declare-const - (-> Int Int Int))
+(declare-const < (-> Int Int Bool))
+(declare-const <= (-> Int Int Bool))
+
+(program arith.eval ((S Type) (a Int) (b Int) )
+    :signature (S) S
+    (
+      ((arith.eval (= a b))  (eo::is_eq (arith.eval a) (arith.eval b)))
+      ((arith.eval (< a b))  (eo::is_neg (arith.eval (- a b))))
+      
+      ((arith.eval (+ a b))  (eo::add (arith.eval a) (arith.eval b)))
+      ((arith.eval (- a b))  (eo::add (arith.eval a a) (eo::neg (arith.eval b))))
+      
+    )
+)
+
+(declare-const BitVec 
+  (-> Int Type))
+
+(declare-consts <binary> (BitVec (eo::len eo::self)))
+
+
+
+(declare-parameterized-const bvextract ((n Int :implicit) (h Int) (l Int)) 
+  (-> (BitVec n)
+    (eo::requires (arith.eval (<= 0 h)) true
+    (eo::requires (arith.eval (< h n)) true
+    (eo::requires (arith.eval (<= 0 l)) true
+    (eo::requires (arith.eval (< l h)) true
+      (BitVec (arith.eval (+ (- h l) 1))))))))
+)
+
+
+
+
+
+
+
+
+
+(step a2 (= #b0010 (bvextract 3 0 #b11010010)) :rule eval :premises )
+

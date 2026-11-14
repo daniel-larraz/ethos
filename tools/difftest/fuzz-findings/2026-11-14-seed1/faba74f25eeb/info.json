@@ -1,0 +1,31 @@
+{
+ "signature": "candidate-crash|thread 'main' (0) panicked at crates/pathos-term/src/store.rs:0:0:",
+ "category": "candidate-crash",
+ "count": 50,
+ "seed": "tests/par-dt.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 3, iteration 2158",
+ "id": "faba74f25eeb",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w3.eo:5.32: Type checking failed:",
+   "Expression: (head (eo::var (List Int)))",
+   "Message: No type rule declared for literal kind STRING; use declare-consts to declare its type before use"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "thread 'main' (1052490) panicked at crates/pathos-term/src/store.rs:523:9:",
+   "index out of bounds: the len is 1 but the index is 1",
+   "note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+  ],
+  "exit_code": 101
+ }
+}

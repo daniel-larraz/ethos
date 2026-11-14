@@ -1,0 +1,25 @@
+(declare-const Int Type)
+
+
+
+(declare-const = (-> Int))
+
+
+
+
+
+(program factorial ((x Int))
+  :signature (Int) Int
+  (
+    ((factorial x) (eo::ite (eo::is_eq  0) 1 (eo::mul x (factorial (eo::add x (eo::neg 1))))))
+  )
+)
+
+
+
+
+(declare-rule eval_factorial ((x Int))
+  :args (x)
+  :conclusion (=  (factorial x)))
+  
+(step @p0  :rule eval_factorial :args (4)

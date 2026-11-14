@@ -1,0 +1,34 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments",
+ "category": "differ-stderr",
+ "count": 5,
+ "seed": "tests/eo-arg-ex.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 12, iteration 19403",
+ "id": "3736dd030ae7",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 2 arguments",
+   "Error: <ctx>/tests/fuzz-w12.eo:34.51: Expression of unexpected type:",
+   "Expression: BitVec",
+   "      Type: (-> Int Type)",
+   "  Expected: (BitVec 35)"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 2 arguments",
+   "Error: <ctx>/tests/fuzz-w12.eo:34.51: Type checking failed:",
+   "Expression: (eo::requires false false)",
+   "Message: Incorrect arity for EVAL_REQUIRES"
+  ],
+  "exit_code": 1
+ }
+}

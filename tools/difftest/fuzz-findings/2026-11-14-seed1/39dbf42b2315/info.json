@@ -1,0 +1,31 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `\"|Error: <file>:0.0: Expected a LPAREN, got `\"",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/bv-literals.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--no-normalize-hex"
+ ],
+ "iteration": "worker 7, iteration 13530",
+ "id": "39dbf42b2315",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w7.eo:1.22: Expected a LPAREN, got `\"",
+   "  ` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w7.eo:1.22: Expected a LPAREN, got `\"",
+   "  \u0000` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

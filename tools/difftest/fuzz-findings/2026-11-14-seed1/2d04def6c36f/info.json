@@ -1,0 +1,29 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `|((T Type :implicit)) (-> T Bool))|Error: <file>:0.0: Expected a LPAREN, got `|((T Type :implicit)) (-> T Bool))",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/declare-consts-missing-numeral.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 9, iteration 4895",
+ "id": "2d04def6c36f",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w9.eo:1.31: Expected a LPAREN, got `|((T Type :implicit)) (-> T Bool))",
+   "` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w9.eo:1.31: Expected a LPAREN, got `|((T Type :implicit)) (-> T Bool))",
+   "\u0000` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 1
+ }
+}

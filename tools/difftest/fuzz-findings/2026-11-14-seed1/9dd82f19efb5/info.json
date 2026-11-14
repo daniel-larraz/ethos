@@ -1,0 +1,35 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/datatypes-split-rule-param-uinst.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--no-normalize-hex"
+ ],
+ "iteration": "worker 11, iteration 52543",
+ "id": "9dd82f19efb5",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_FIND, 2 arguments",
+   "...expected associative application to end in eo::List::nil, got nil",
+   "...expected associative application to end in eo::List::nil, got nil",
+   "Error: <ctx>/tests/fuzz-w11.eo:42.38: A step of rule dt-inst failed to check.",
+   "Evaluation failed: (= (_ (= x) ($mk_dt_inst eo::List::nil x (eo::list_nth eo::List::cons (_ (_ eo::List::cons (as nil (Lst Int))) eo::List::nil) (eo::list_find eo::List::cons nil)))))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_FIND, 2 arguments",
+   "Error: <ctx>/tests/fuzz-w11.eo:42.38: A step of rule dt-inst failed to check.",
+   "Evaluation failed: (= (_ (= x) ($mk_dt_inst eo::List::nil x (eo::list_nth eo::List::cons (_ (_ eo::List::cons (as nil (Lst Int))) eo::List::nil) (eo::list_find eo::List::cons nil)))))"
+  ],
+  "exit_code": 1
+ }
+}

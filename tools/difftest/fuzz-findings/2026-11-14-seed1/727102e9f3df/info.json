@@ -1,0 +1,41 @@
+{
+ "signature": "differ-stderr|*** Bad number of arguments provided in function call to ($substitute x y x)|*** Bad number of arguments provided in function call to ($substitute x y x)",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/skolemize-v2.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 15, iteration 37861",
+ "id": "727102e9f3df",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to ($substitute x y x)",
+   "  Arguments: [$substitute (eo::var \"x\" Int) (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (_ (_ choice (_ (_ @cons _v1) @nil)) (_ (_ exists (_ (_ @cons _v0) @nil)) (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true))))))]",
+   "*** Bad number of arguments provided in function call to ($substitute x y x)",
+   "  Arguments: [$substitute (eo::var \"x\" Int) (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (_ (_ choice (_ (_ @cons _v1) @nil)) (_ (_ exists (_ (_ @cons _v0) @nil)) (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true))))))]",
+   "Error: <ctx>/tests/fuzz-w15.eo:58.42: A step of rule skolemize failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (eo::define ((_v2 (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true)))) (eo::define ((_v3 (_ (_ @cons _v0) @nil))) (eo::define ((_v4 (_ @cons _v1))) (eo::define ((_v5 (_ (_ choice (_ _v4 @nil)) (_ (_ exists _v3) _v2)))) (eo::define ((_v6 ($substitute _v1 _v5))) ($substitute_list (_ _v4 _v3) (eo::cons @cons _v5 ($mk_skolems _v3 (_ _v6 (_ _v6 ($substitute _v1 _v5 true))))) _v2))))))))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to ($substitute x y x)",
+   "  Arguments: [$substitute (eo::var \"x\" Int) (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (_ (_ choice (_ (_ @cons _v1) @nil)) (_ (_ exists (_ (_ @cons _v0) @nil)) (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true))))))]",
+   "*** Bad number of arguments provided in function call to ($substitute x y x)",
+   "  Arguments: [$substitute (eo::var \"x\" Int) (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (_ (_ choice (_ (_ @cons _v1) @nil)) (_ (_ exists (_ (_ @cons _v0) @nil)) (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true))))))]",
+   "*** Bad number of arguments provided in function call to ($substitute x y x)",
+   "  Arguments: [$substitute (eo::var \"x\" Int) (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (_ (_ choice (_ (_ @cons _v1) @nil)) (_ (_ exists (_ (_ @cons _v0) @nil)) (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true))))))]",
+   "*** Bad number of arguments provided in function call to ($substitute x y x)",
+   "  Arguments: [$substitute (eo::var \"x\" Int) (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (_ (_ choice (_ (_ @cons _v1) @nil)) (_ (_ exists (_ (_ @cons _v0) @nil)) (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true))))))]",
+   "Error: <ctx>/tests/fuzz-w15.eo:58.42: A step of rule skolemize failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (eo::var \"y\" Int))) (eo::define ((_v1 (eo::var \"x\" Int))) (eo::define ((_v2 (_ (_ and (_ (_ = _v1) a)) (_ (_ and (_ (_ = _v0) b)) true)))) (eo::define ((_v3 (_ (_ @cons _v0) @nil))) (eo::define ((_v4 (_ @cons _v1))) (eo::define ((_v5 (_ (_ choice (_ _v4 @nil)) (_ (_ exists _v3) _v2)))) (eo::define ((_v6 ($substitute _v1 _v5))) ($substitute_list (_ _v4 _v3) (eo::cons @cons _v5 ($mk_skolems _v3 (_ _v6 (_ _v6 ($substitute _v1 _v5 true))))) _v2))))))))"
+  ],
+  "exit_code": 1
+ }
+}

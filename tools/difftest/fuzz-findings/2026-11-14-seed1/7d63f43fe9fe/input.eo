@@ -1,0 +1,58 @@
+(declare-const String Type)
+(declare-consts <string> String)
+
+(declare-const @List Type)
+(declare-const @nil @List)
+(declare-parameterized-const @cons ((T Type :implicit)) (-> T @List @List) :right-assoc-nil @nil)
+
+(declare-const exists (-> @List Bool Bool) :binder @cons)
+(declare-const and (-> Bool Bool Bool) :right-assoc-nil true)
+(declare-parameterized-const = ((A Type :implicit)) (-> A A Bool) :chainable and)
+
+(program $substitute
+  ((T Type) (U Type) (S Type) (x S) (y S)  (a T) (z U) (w T))
+  :signature (S S U) U
+  (
+  
+  
+  (($substitute x y z)             z)
+  )
+)
+
+(program $substitute_list ((T Type) (U Type) (F U) (x T)  (t T) (ts @List :list))
+  :signature (@List @List U) U
+  
+)
+
+;; ---------------------
+
+(program $get_choice_type ((x @List))
+  :signature (@List) Type
+  
+)
+(declare-parameterized-const choice ((L @List)) (-> Bool ($get_choice_type L)) :binder @cons)
+
+(program $mk_skolems ((T Type) (x T) (xs @List :list) (F Bool))
+  :signature (@List Bool) @List
+  (
+    (($mk_skolems (@cons x) F)    (@cons ))
+    (($mk_skolems (@cons x xs) F) (eo::define ((F2 (exists xs F)))
+                                  (eo::define ((c (choice (@cons x) F2)))
+                                  (eo::define ((Fs ($substitute x c F)))
+                                    (eo::cons @cons  ($mk_skolems xs Fs))))))
+  )
+)
+
+(declare-rule skolemize ((x @List) (F Bool))
+  :premises ((exists x F))
+  :conclusion ($substitute_list x ($mk_skolems x F) F)
+)
+
+;; ---------------------
+
+(declare-const Int Type)
+(declare-const a Int)
+(declare-const b Int)
+(define Q () (exists ((x Int) (y Int)) (and  (= y b))))
+(assume @p0 Q)
+(step @p1 :rule skolemize :premises (@p0))

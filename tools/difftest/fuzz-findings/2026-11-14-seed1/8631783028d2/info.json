@@ -1,0 +1,31 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `|)|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `|)",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/list-nth-non-list.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--normalize-num"
+ ],
+ "iteration": "worker 4, iteration 14902",
+ "id": "8631783028d2",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w4.eo:1.27: Expected KEYWORD or RPAREN, got `|)",
+   "` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w4.eo:1.27: Expected KEYWORD or RPAREN, got `|)",
+   "\u0000` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 1
+ }
+}

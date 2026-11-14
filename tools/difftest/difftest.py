@@ -7,9 +7,11 @@ be the definition of "done" for a reimplementation: the candidate matches when
 `difftest.py run` reports no differences.
 
 Subcommands:
-  build-ref   build a Release reference binary from a git revision
-  gen-proofs  generate a corpus of cvc5 CPC proofs from cvc5's regressions
-  run         compare a reference and a candidate binary on the inputs
+  build-ref    build a Release reference binary from a git revision
+  gen-proofs   generate a corpus of cvc5 CPC proofs from cvc5's regressions
+  run          compare a reference and a candidate binary on the inputs
+  fuzz         compare them on mutated inputs (fuzz.py)
+  fuzz-replay  rerun saved fuzzing findings
 
 See README.md in this directory for what counts as "the same".
 Only the Python standard library is used.
@@ -816,6 +818,9 @@ def main():
                    help="seconds per cvc5 run (default 30)")
     p.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 1)
     p.set_defaults(func=cmd_gen_proofs)
+
+    import fuzz  # differential fuzzing: fuzz.py, next to this file
+    fuzz.add_parsers(sub, sys.modules[__name__])
 
     args = parser.parse_args()
     sys.exit(args.func(args))

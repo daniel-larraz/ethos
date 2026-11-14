@@ -1,0 +1,42 @@
+; This version of the signature assumes testers are written e.g. (_ is nil), for the uninstantiated version of the constructor
+
+; helper method to get the *uninstantiated* form of the list of constructors of a datatype
+
+
+(declare-const Int Type)
+(declare-datatypes ((Lst 1)) ((par (X)( (nil)))))
+
+
+
+
+(declare-parameterized-const = ((T Type :implicit)) (-> T T Bool))
+
+
+
+
+
+(declare-const x (Lst Int))
+
+
+
+
+(program $mk_dt_inst ((D Type)  (T Type)     )
+  :signature (eo::List D T) D
+  
+)
+
+(declare-rule dt-inst ((D Type) (T Type) (c T) (x D))
+  :args (c x)
+  :conclusion (=  
+      (= x 
+         (eo::define ((U (eo::typeof x)))
+         ($mk_dt_inst (eo::dt_selectors c) x
+            ; start with the *instantiated* version of the constructor, which is at the same index
+            (eo::list_nth 
+              eo::List::cons 
+              (eo::dt_constructors U) 
+              (eo::list_find eo::List::cons  c))))))
+)
+
+
+(step @p1  :rule dt-inst :args (nil x))

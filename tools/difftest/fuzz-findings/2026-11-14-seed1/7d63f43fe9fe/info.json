@@ -1,0 +1,35 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_CONS, 0 arguments|Wrong number of arguments when applying literal op EVAL_CONS, 0 arguments",
+ "category": "differ-stderr",
+ "count": 4,
+ "seed": "tests/skolemize-v2.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--reference-define-fun"
+ ],
+ "iteration": "worker 5, iteration 6418",
+ "id": "7d63f43fe9fe",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_CONS, 2 arguments",
+   "No program defined for $substitute_list",
+   "No program defined for $substitute_list",
+   "Error: <ctx>/tests/fuzz-w5.eo:58.42: A step of rule skolemize failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (eo::var \"y\" Int))) ($substitute_list (_ (_ @cons (eo::var \"x\" Int)) (_ (_ @cons _v0) @nil)) (_ (_ @cons @nil) @nil) (_ (_ and (_ (_ = _v0) b)) true)))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_CONS, 2 arguments",
+   "Error: <ctx>/tests/fuzz-w5.eo:58.42: A step of rule skolemize failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (eo::var \"y\" Int))) ($substitute_list (_ (_ @cons (eo::var \"x\" Int)) (_ (_ @cons _v0) @nil)) (eo::cons @cons @nil) (_ (_ and (_ (_ = _v0) b)) true)))"
+  ],
+  "exit_code": 1
+ }
+}

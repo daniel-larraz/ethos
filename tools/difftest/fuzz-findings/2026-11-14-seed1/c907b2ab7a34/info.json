@@ -1,0 +1,28 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\" U` (UNTERMINATED_STRING_LITERAL).|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\" U\u0000",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/quote-opaque.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 14, iteration 4685",
+ "id": "c907b2ab7a34",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w14.eo:1.33: Expected SMT-LIBv2 term, got `\" U` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w14.eo:1.33: Expected SMT-LIBv2 term, got `\" U\u0000",
+   "  ` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

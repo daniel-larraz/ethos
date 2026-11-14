@@ -1,0 +1,59 @@
+{
+ "signature": "differ-stderr|*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))|*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/bv-eval.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 11, iteration 43895",
+ "id": "51c9af2fb743",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 0 0]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 0 0]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 0 0]",
+   "Error: <ctx>/tests/fuzz-w11.eo:46.46: Type checking failed:",
+   "Expression: (_ (= #b0010) (_ (_ (bvextract 3) 0) #b11010010))",
+   "Message: Has type (eo::define ((_v0 (arith.eval 3 3))) (eo::define ((_v1 (<= 0))) (eo::requires (arith.eval (_ _v1 3)) true (eo::requires (eo::is_neg (eo::add _v0 (eo::neg (arith.eval 8)))) true (eo::requires (arith.eval (_ _v1 0)) true (eo::requires (eo::is_neg (eo::add (arith.eval 0 0) (eo::neg (arith.eval 3)))) true (BitVec (eo::add (eo::add _v0 (eo::neg (arith.eval 0))) (arith.eval 1))))))))) whose evaluation cannot be reduced"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 0 0]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 0 0]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 0 0]",
+   "*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))",
+   "  Arguments: [arith.eval 3 3]",
+   "Error: <ctx>/tests/fuzz-w11.eo:46.46: Type checking failed:",
+   "Expression: (_ (= #b0010) (_ (_ (bvextract 3) 0) #b11010010))",
+   "Message: Has type (eo::define ((_v0 (arith.eval 3 3))) (eo::define ((_v1 (<= 0))) (eo::requires (arith.eval (_ _v1 3)) true (eo::requires (eo::is_neg (eo::add _v0 (eo::neg (arith.eval 8)))) true (eo::requires (arith.eval (_ _v1 0)) true (eo::requires (eo::is_neg (eo::add (arith.eval 0 0) (eo::neg (arith.eval 3)))) true (BitVec (eo::add (eo::add _v0 (eo::neg (arith.eval 0))) (arith.eval 1))))))))) whose evaluation cannot be reduced"
+  ],
+  "exit_code": 1
+ }
+}

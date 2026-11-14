@@ -1,0 +1,33 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const BitVec (-> Int Type))|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const BitVec (-> Int Type))",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/eo-arg-ex.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--reference-define-fun"
+ ],
+ "iteration": "worker 15, iteration 24534",
+ "id": "c69ba665e7cd",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w15.eo:1.2: Expected Eunoia command, got `\"declare-const BitVec (-> Int Type))",
+   "",
+   "` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w15.eo:1.2: Expected Eunoia command, got `\"declare-const BitVec (-> Int Type))",
+   "",
+   "\u0000` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

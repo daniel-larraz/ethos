@@ -1,0 +1,25 @@
+{
+ "signature": "candidate-timeout|Wrong number of arguments when applying literal op EVAL_IS_EQ, 0 arguments|timeout",
+ "category": "candidate-timeout",
+ "count": 2,
+ "seed": "tests/ite-compile-test.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 6, iteration 11851",
+ "id": "ff54258e0b01",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_IS_EQ, 1 arguments"
+  ],
+  "exit_code": 139
+ },
+ "candidate": {
+  "outcome": "timeout",
+  "stdout": [],
+  "stderr": [],
+  "exit_code": -9
+ }
+}

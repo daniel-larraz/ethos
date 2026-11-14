@@ -1,0 +1,9 @@
+(declare-parameterized-const @@TypedList ((T Type)) Type)
+(declare-parameterized-const @@TypedList.nil ((T Type)) (@@TypedList T))
+(declare-parameterized-const @@TypedList.cons ((T Type :implicit))
+  (-> T (@@TypedList T) ) :right-assoc-nil (@@TypedList.nil T))
+
+(declare-const a Bool)
+(declare-const b Bool)
+(define test2_intro2 () (eo::list_singleton_intro @@TypedList.cons (@@TypedList.cons a b))
+  :is_eq (@@TypedList.cons a b)

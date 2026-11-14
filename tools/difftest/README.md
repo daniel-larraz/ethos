@@ -142,6 +142,50 @@ proofs and pass both with `--corpus`:
 `--min-bytes` keeps only proofs of at least that many bytes. Generating it
 runs cvc5 on every unsat benchmark of those levels and takes a long time.
 
+## Differential fuzzing
+
+`fuzz` (in `fuzz.py`) runs both checkers on mutated inputs and keeps every
+mutant on which they differ, compared as `run` compares them:
+
+```sh
+./difftest.py fuzz --ref <ethos> --cand <candidate> --tests ../../tests \
+    --corpus work/corpus --time 600 --seed 1
+```
+
+- **Seeds:** every top-level file of `tests/` and the 20 smallest proofs of
+  the corpus (`--corpus-seeds`). Mutants are written into a copy of `tests/`,
+  or next to the corpus's CPC signature, so their includes resolve.
+- **Mutations** work on tokens and balanced subexpressions: delete, duplicate,
+  swap or replace tokens and subexpressions (from all seeds), edge-case
+  literals (32- and 64-bit limits, empty and malformed literals, escapes,
+  non-ASCII and non-UTF-8 bytes), unbalanced parentheses, stray bytes,
+  truncation, and splicing two seeds. A share of mutants (`--option-rate`,
+  15%) runs under a non-default option set; `--no-print-dag` is left out
+  because it can make one error message gigabytes long.
+- **Findings:** any difference, a timeout on one side only (`--timeout`, 10 s),
+  a crash or panic of the candidate, or a crash of Ethos other than its
+  normal abort. Ethos crashes are Ethos bugs: they are reported, but not
+  counted as failures. Findings are grouped by a signature (category and
+  first error line, with numbers and paths masked); the first example of each
+  group is minimized by removing subexpressions and tokens while the
+  signature stays the same.
+- **Output:** `<work>/findings/<id>/` holds `input.<ext>` (minimized),
+  `original.<ext>` and `info.json` (seed, options, both normalized outputs);
+  `<work>/summary.json` lists the groups with their counts. `fuzz` exits 1 if
+  there is a finding other than an Ethos crash.
+- **Reproducibility:** `--seed` fixes the mutants; with `--iterations` instead
+  of `--time` and the same `--jobs`, a run is repeated exactly.
+
+`fuzz-replay --findings <dir>` reruns saved findings in the same kind of
+directory and reports which still differ, for example after a fix.
+
+Findings worth keeping are copied into `fuzz-findings/<date>-seed<N>/`, which
+is under version control, so that they serve as regression tests. Paths in
+their `info.json` are shortened to `<ctx>/`; `SUMMARY.json` has the counts.
+`fuzz-findings/2026-11-14-seed1/` holds the first run against pathos: 888,900
+mutants in 10 minutes, 99.95% agreeing, 40 groups of differences and one
+Ethos crash.
+
 ## Reference cache
 
 `run` caches the reference's results in `work/ref-cache.json`, so repeated runs
@@ -201,6 +245,10 @@ Two self-tests, on 2026-11-13, against reference `9217112f`:
    ten option sets each), 0 differences. One run takes Ethos 179 s, because
    `--no-print-dag` makes it print 1.77 GB of error output; option runs need a
    timeout well above the default 120 s.
+
+4. **Fuzzer, reference against itself:** 93,924 mutants in one minute, no
+   differences. The only finding was an Ethos crash: a segmentation fault on
+   `eo::requires` applied to one argument inside a rule's `:requires`.
 
 To repeat test 2, copy `work/ref/<rev>/src`, change one line, build it with
 `cmake -S . -B ../build -DCMAKE_BUILD_TYPE=Release`, and run it as `--cand`.

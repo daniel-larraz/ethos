@@ -1,0 +1,38 @@
+{
+ "signature": "differ-stderr|Unknown category for parameterized operator =|Unknown category for parameterized operator =",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/chainable.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 15, iteration 24845",
+ "id": "105429b427d3",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Unknown category for parameterized operator =",
+   "Error: <ctx>/tests/fuzz-w15.eo:3.16: Type checking failed:",
+   "Expression: ([NONE])",
+   "Message: Unknown kind NONE"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Unknown category for parameterized operator =",
+   "Error: <ctx>/tests/fuzz-w15.eo:3.16: Type checking failed:",
+   "Expression: (_ = d)",
+   "Message: Checking application of =",
+   "Unexpected type of child #1",
+   "  Term: d",
+   "  Has type: Bool",
+   "  Expected type: Type",
+   "  Context []"
+  ],
+  "exit_code": 1
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "signature": "differ-stderr|No program defined for check_true|No program defined for check_true",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/use-match.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 9, iteration 40117",
+ "id": "41f05f94f41b",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "Error: <ctx>/tests/fuzz-w9.eo:52.55: A step of rule collect_acc failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (_ pair \"\"))) (eo::define ((_v1 (check_true))) (mk_collect_acc (_ (_ str.++ \"A\") (_ (_ str.++ \"B\") (_ (_ str.++ x) \"\"))) (eo::ite _v1 (string_collect_acc_match \"A\" (eo::ite _v1 (string_collect_acc_match \"B\" (eo::ite _v1 (string_collect_acc_match x (string_collect_acc \"\")) _v0)) _v0)) _v0))))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "No program defined for check_true",
+   "Error: <ctx>/tests/fuzz-w9.eo:52.55: A step of rule collect_acc failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (_ pair \"\"))) (eo::define ((_v1 (check_true))) (mk_collect_acc (_ (_ str.++ \"A\") (_ (_ str.++ \"B\") (_ (_ str.++ x) \"\"))) (eo::ite _v1 (string_collect_acc_match \"A\" (eo::ite _v1 (string_collect_acc_match \"B\" (eo::ite _v1 (string_collect_acc_match x (string_collect_acc \"\")) _v0)) _v0)) _v0))))"
+  ],
+  "exit_code": 1
+ }
+}

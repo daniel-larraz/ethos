@@ -1,0 +1,28 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `|` (UNTERMINATED_QUOTED_SYMBOL).|Error: <file>:0.0: Expected Eunoia command, got `|\u0000declare-datatype a ((b)))",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/singular-datatype.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 7, iteration 40946",
+ "id": "c150d9545bd0",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w7.eo:1.2: Expected Eunoia command, got `|` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w7.eo:1.2: Expected Eunoia command, got `|\u0000declare-datatype a ((b)))",
+   "` (UNTERMINATED_QUOTED_SYMBOL)."
+  ],
+  "exit_code": 1
+ }
+}

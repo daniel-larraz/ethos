@@ -1,0 +1,362 @@
+{
+ "seed": "1",
+ "runs": 888900,
+ "agree": 888408,
+ "both_timed_out": 44,
+ "findings": [
+  {
+   "id": "faba74f25eeb",
+   "category": "candidate-crash",
+   "count": 50,
+   "seed": "tests/par-dt.eo",
+   "options": [],
+   "signature": "candidate-crash|thread 'main' (0) panicked at crates/pathos-term/src/store.rs:0:0:"
+  },
+  {
+   "id": "ff54258e0b01",
+   "category": "candidate-timeout",
+   "count": 2,
+   "seed": "tests/ite-compile-test.eo",
+   "options": [],
+   "signature": "candidate-timeout|Wrong number of arguments when applying literal op EVAL_IS_EQ, 0 arguments|timeout"
+  },
+  {
+   "id": "61b51e877e36",
+   "category": "candidate-timeout",
+   "count": 2,
+   "seed": "tests/ite-compile-test.eo",
+   "options": [],
+   "signature": "candidate-timeout|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments|timeout"
+  },
+  {
+   "id": "cebe255ce77d",
+   "category": "differ-stderr",
+   "count": 33,
+   "seed": "tests/nground-nil-ex.eo",
+   "options": [
+    "--no-normalize-dec"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Type checking failed:|Error: <file>:0.0: Type checking failed:"
+  },
+  {
+   "id": "8c77e11502fe",
+   "category": "differ-stderr",
+   "count": 13,
+   "seed": "tests/homogeneous-list-ops.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Terms are not equal:|Error: <file>:0.0: Terms are not equal:"
+  },
+  {
+   "id": "e081f9cc584f",
+   "category": "differ-stderr",
+   "count": 13,
+   "seed": "tests/substitution-binary-only.eo",
+   "options": [],
+   "signature": "differ-stderr|*** Bad number of arguments provided in function call to (substitute x y x)|*** Bad number of arguments provided in function call to (substitute x y x)"
+  },
+  {
+   "id": "439a0d2cb856",
+   "category": "differ-stderr",
+   "count": 7,
+   "seed": "tests/use-match.eo",
+   "options": [
+    "--no-rule-sym-table"
+   ],
+   "signature": "differ-stderr|Wrong number of arguments when applying program check_true, 0 arguments expected, got 0|Wrong number of arguments when applying program check_true, 0 arguments expected, got 0"
+  },
+  {
+   "id": "3736dd030ae7",
+   "category": "differ-stderr",
+   "count": 5,
+   "seed": "tests/eo-arg-ex.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments"
+  },
+  {
+   "id": "7d63f43fe9fe",
+   "category": "differ-stderr",
+   "count": 4,
+   "seed": "tests/skolemize-v2.eo",
+   "options": [
+    "--reference-define-fun"
+   ],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_CONS, 0 arguments|Wrong number of arguments when applying literal op EVAL_CONS, 0 arguments"
+  },
+  {
+   "id": "0f1e2152e7cc",
+   "category": "differ-stderr",
+   "count": 2,
+   "seed": "tests/or-no-desugar.eo",
+   "options": [
+    "--no-parse-let"
+   ],
+   "signature": "differ-stderr|*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))|*** Bad number of arguments provided in function call to (substitute-over-or x y (_ (_ or z) l))"
+  },
+  {
+   "id": "c907b2ab7a34",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/quote-opaque.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\" U` (UNTERMINATED_STRING_LITERAL).|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\" U\u0000"
+  },
+  {
+   "id": "2d04def6c36f",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/declare-consts-missing-numeral.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `|((T Type :implicit)) (-> T Bool))|Error: <file>:0.0: Expected a LPAREN, got `|((T Type :implicit)) (-> T Bool))"
+  },
+  {
+   "id": "7d8c85737a64",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/overloading.eo",
+   "options": [
+    "--reference-define-fun"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `||Error: <file>:0.0: Expected a LPAREN, got `|"
+  },
+  {
+   "id": "7fdb3160789d",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/require-proof-of-false-last-step.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `\"((T Type :implicit))|Error: <file>:0.0: Expected a LPAREN, got `\"((T Type :implicit))"
+  },
+  {
+   "id": "52c54ddd9624",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/reference-bv-constant.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `\"declare-parameterized-const = ((T Type ` (STRING_L|Error: <file>:0.0: Expected Eunoia command, got `\"declare-parameterized-const = ((T Type \u0000:implicit)"
+  },
+  {
+   "id": "fe3429d089c4",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "corpus/regress0__uf__distinct-true.cpc",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 operator, got `\"not @t0))|Error: <file>:0.0: Expected SMT-LIBv0 operator, got `\"not @t0))"
+  },
+  {
+   "id": "39dbf42b2315",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/bv-literals.eo",
+   "options": [
+    "--no-normalize-hex"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `\"|Error: <file>:0.0: Expected a LPAREN, got `\""
+  },
+  {
+   "id": "8631783028d2",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/list-nth-non-list.eo",
+   "options": [
+    "--normalize-num"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `|)|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `|)"
+  },
+  {
+   "id": "221e02acf44c",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/or-list.eo",
+   "options": [
+    "--normalize-num"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|)|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|)"
+  },
+  {
+   "id": "971aa0d5281f",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/or-list-null-term.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\"Pair T)|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\"Pair T)"
+  },
+  {
+   "id": "38c3f0545c44",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/singular-datatype.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|(b))` (UNTERMINATED_QUOTED_SYMBOL).|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|(b))\u0000)"
+  },
+  {
+   "id": "3afa8225bb89",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/type-var-exists.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|) (` (UNTERMINATED_QUOTED_SYMBOL).|Error: <file>:0.0: Expected LPAREN or RPAREN, got `|) (\u0000 x x)))"
+  },
+  {
+   "id": "93dc87392741",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/eval-inc.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\"))|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\"))"
+  },
+  {
+   "id": "c69ba665e7cd",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/eo-arg-ex.eo",
+   "options": [
+    "--reference-define-fun"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const BitVec (-> Int Type))|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const BitVec (-> Int Type))"
+  },
+  {
+   "id": "105429b427d3",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/chainable.eo",
+   "options": [],
+   "signature": "differ-stderr|Unknown category for parameterized operator =|Unknown category for parameterized operator ="
+  },
+  {
+   "id": "7c8bcf32c79f",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/simple.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const Int Type)|Error: <file>:0.0: Expected Eunoia command, got `\"declare-const Int Type)"
+  },
+  {
+   "id": "6f008521b732",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/homogeneous-list-ops.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments"
+  },
+  {
+   "id": "c150d9545bd0",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/singular-datatype.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `|` (UNTERMINATED_QUOTED_SYMBOL).|Error: <file>:0.0: Expected Eunoia command, got `|\u0000declare-datatype a ((b)))"
+  },
+  {
+   "id": "51c9af2fb743",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/bv-eval.eo",
+   "options": [],
+   "signature": "differ-stderr|*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))|*** Bad number of arguments provided in function call to (arith.eval (_ (= a) b))"
+  },
+  {
+   "id": "e717772c5895",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/bv-type-strict.eo",
+   "options": [
+    "--reference-define-fun"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected a RPAREN, got `\")|Error: <file>:0.0: Expected a RPAREN, got `\")"
+  },
+  {
+   "id": "41f05f94f41b",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/use-match.eo",
+   "options": [],
+   "signature": "differ-stderr|No program defined for check_true|No program defined for check_true"
+  },
+  {
+   "id": "727102e9f3df",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/skolemize-v2.eo",
+   "options": [],
+   "signature": "differ-stderr|*** Bad number of arguments provided in function call to ($substitute x y x)|*** Bad number of arguments provided in function call to ($substitute x y x)"
+  },
+  {
+   "id": "685fd2339c1f",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/opaque-inst.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `\")|Error: <file>:0.0: Expected KEYWORD or RPAREN, got `\")"
+  },
+  {
+   "id": "d0efcb6c3eb1",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "corpus/regress0__bv__bv-card-conflict.cpc",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `|declare-const d (_ BitVec 0))|Error: <file>:0.0: Expected Eunoia command, got `|declare-const d (_ BitVec 0))"
+  },
+  {
+   "id": "054c1d58d487",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/bv-eval.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_NIL, 0 arguments|Wrong number of arguments when applying literal op EVAL_NIL, 0 arguments"
+  },
+  {
+   "id": "9dd82f19efb5",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/datatypes-split-rule-param-uinst.eo",
+   "options": [
+    "--no-normalize-hex"
+   ],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments"
+  },
+  {
+   "id": "99f9a2953396",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/pf-simple-sig-2.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected EOF or LPAREN, got `|(declare-const Int` (UNTERMINATED_QUOTED_SYMBOL).|Error: <file>:0.0: Expected EOF or LPAREN, got `|(declare-const Int\u0000 Type)"
+  },
+  {
+   "id": "db7e354fd2df",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/eo-definitions-test.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\") (or false) Bool))|Error: <file>:0.0: Expected SMT-LIBv0 term, got `\") (or false) Bool))"
+  },
+  {
+   "id": "ef5c73624924",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/generic-swap.eo",
+   "options": [
+    "--no-normalize-dec"
+   ],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `\"((T Type) (t (Pair T)))|Error: <file>:0.0: Expected a LPAREN, got `\"((T Type) (t (Pair T)))"
+  },
+  {
+   "id": "800a2f74b2e1",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/bv-concat.eo",
+   "options": [],
+   "signature": "differ-stderr|Error: <file>:0.0: Expected Eunoia command, got `\"declare-parameterized-const bvadd ((n Int :implici|Error: <file>:0.0: Expected Eunoia command, got `\"declare-parameterized-const bvadd ((n Int :implici"
+  },
+  {
+   "id": "5c8e2fd48d70",
+   "category": "reference-crash",
+   "count": 287,
+   "seed": "tests/requires.eo",
+   "options": [],
+   "signature": "reference-crash|SIGSEGV"
+  }
+ ],
+ "reference": "Ethos 9217112f (Release)",
+ "candidate": "pathos main at ae68349"
+}

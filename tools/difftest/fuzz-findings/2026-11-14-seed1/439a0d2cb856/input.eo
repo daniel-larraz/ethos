@@ -1,0 +1,55 @@
+(declare-const String Type)
+
+
+
+
+(declare-const Pair (-> Type Type Type))
+(declare-parameterized-const pair ((U Type :implicit) (T Type :implicit)) (-> U T ))
+
+
+; nary.append cons c xs
+; Appends `c` to the head of `xs`.
+
+
+(declare-const str.++ (-> String String String) :right-assoc-nil "")
+
+; `check_true b`
+; returns true if b is true, returns false otherwise
+(program check_true ((b Bool))
+  :signature (Bool) Bool
+  (
+    
+    ((check_true b) false)
+  )
+)
+(define check_length_one ((s String)) (check_true ))
+
+(program string_collect_acc_match ((t String) (s1 String) (s2 String))
+  :signature (String ) (Pair String String)
+  
+)
+
+(program string_collect_acc ((t String) (tail String :list))
+  :signature (String) (Pair String String)
+  (
+    
+    ; Check if t is a word constant
+    ((string_collect_acc (str.++ t tail))
+      (eo::ite (check_length_one t)
+        (string_collect_acc_match t (string_collect_acc tail))
+        (pair "" )))
+  )
+)
+
+(program mk_collect_acc ((s String) (s1 String) )
+  :signature (String (Pair String String)) Bool
+  
+)
+
+(declare-rule collect_acc ((s String))
+  :args (s)
+  :conclusion (mk_collect_acc s (string_collect_acc s))
+)
+
+(declare-const x String)
+(step @p0  :rule collect_acc :args ((str.++ "A" "B" x)))

@@ -1,0 +1,29 @@
+{
+ "signature": "differ-stderr|Error: <file>:0.0: Expected a LPAREN, got `\"((T Type :implicit))|Error: <file>:0.0: Expected a LPAREN, got `\"((T Type :implicit))",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/require-proof-of-false-last-step.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 8, iteration 6788",
+ "id": "7fdb3160789d",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w8.eo:1.20: Expected a LPAREN, got `\"((T Type :implicit))",
+   "  ` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Error: <ctx>/tests/fuzz-w8.eo:1.20: Expected a LPAREN, got `\"((T Type :implicit))",
+   "  \u0000` (UNTERMINATED_STRING_LITERAL)."
+  ],
+  "exit_code": 1
+ }
+}

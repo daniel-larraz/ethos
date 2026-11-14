@@ -1,0 +1,11 @@
+(declare-parameterized-const @@TypedList ((T Type)) Type)
+(declare-parameterized-const @@TypedList.nil ((T Type)) (@@TypedList T))
+(declare-parameterized-const @@TypedList.cons ((T Type :implicit))
+  (-> T  (@@TypedList T)) :right-assoc-nil (@@TypedList.nil T))
+
+
+(declare-const b Bool)
+(declare-const c Bool)
+  
+(define test1 () (eo::list_concat @@TypedList.cons  )
+  :is_eq (@@TypedList.cons b c)

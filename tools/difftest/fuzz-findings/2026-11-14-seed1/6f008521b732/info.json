@@ -1,0 +1,33 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/homogeneous-list-ops.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 11, iteration 32374",
+ "id": "6f008521b732",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 1 arguments",
+   "Error: <ctx>/tests/fuzz-w11.eo:11.31: Terms are not equal:",
+   "Expression: (eo::list_concat @@TypedList.cons)",
+   "Target expression: (_ (_ @@TypedList.cons b) (_ (_ @@TypedList.cons c) (@@TypedList.nil Bool)))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 1 arguments",
+   "Error: <ctx>/tests/fuzz-w11.eo:11.31: Terms are not equal:",
+   "Expression: (eo::list_concat @@TypedList.cons)",
+   "Target expression: (_ (_ @@TypedList.cons b) (_ (_ @@TypedList.cons c) (eo::nil @@TypedList.cons (eo::typeof b))))"
+  ],
+  "exit_code": 1
+ }
+}
