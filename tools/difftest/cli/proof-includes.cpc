@@ -1,0 +1,8 @@
+; Includes sig.eo itself.
+(include "sig.eo")
+(declare-const a Bool)
+(declare-const b Bool)
+(assume @p0 (and a (not (not b))))
+(step @p1 a :rule and_elim1 :premises (@p0))
+(step @p2 (not (not b)) :rule and_elim2 :premises (@p0))
+(step @p3 b :rule not_not_elim :premises (@p2))

@@ -1,0 +1,22 @@
+; Signature for the command-line cases (cli_cases in difftest.py).
+(declare-const and (-> Bool Bool Bool))
+(declare-const not (-> Bool Bool))
+
+(declare-rule and_elim1 ((p Bool) (q Bool))
+  :premises ((and p q))
+  :conclusion p)
+
+(declare-rule and_elim2 ((p Bool) (q Bool))
+  :premises ((and p q))
+  :conclusion q)
+
+(program $not_not_elim ((p Bool))
+  :signature (Bool) Bool
+  (
+  (($not_not_elim (not (not p))) p)
+  )
+)
+
+(declare-rule not_not_elim ((p Bool))
+  :premises ((not (not p)))
+  :conclusion ($not_not_elim (not (not p))))

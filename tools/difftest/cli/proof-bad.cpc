@@ -1,0 +1,5 @@
+; A step that does not check, after sig.eo.
+(declare-const a Bool)
+(declare-const b Bool)
+(assume @p0 (and a b))
+(step @p1 b :rule and_elim1 :premises (@p0))

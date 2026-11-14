@@ -1,0 +1,2 @@
+; Assumes something ref.smt2 does not assert.
+(assume @p0 (> x 1))

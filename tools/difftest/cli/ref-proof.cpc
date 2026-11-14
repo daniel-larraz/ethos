@@ -1,0 +1,3 @@
+; Assumes the assertions of ref.smt2.
+(assume @p0 (> x 0))
+(assume @p1 (< x 0))

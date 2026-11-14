@@ -83,15 +83,17 @@ GNU_TIME = find_gnu_time()
 MEASUREMENT = ("gnu-time-1" if GNU_TIME else "wait4-1") + "/bytes-1/blocking-wait-1"
 
 
-def run_binary(binary, args, cwd, timeout):
+def run_binary(binary, args, cwd, timeout, stdin=None):
     """Runs `binary args` in `cwd`; returns its output, time and peak RSS.
 
     Output goes to temporary files rather than pipes so that a process
     producing a lot of output cannot block. The peak RSS comes from GNU time
     when it is installed (see find_gnu_time), and otherwise from wait4, which
-    overstates it by the size of the Python process.
+    overstates it by the size of the Python process. `stdin` is a file to
+    read standard input from; by default it is empty.
     """
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, \
+    with open(stdin or os.devnull, "rb") as stdin_file, \
+            tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, \
             tempfile.NamedTemporaryFile("r") as rss_file:
         command = [str(binary), *args]
         if GNU_TIME:
@@ -100,7 +102,7 @@ def run_binary(binary, args, cwd, timeout):
         proc = subprocess.Popen(
             command,
             cwd=cwd,
-            stdin=subprocess.DEVNULL,
+            stdin=stdin_file,
             stdout=out,
             stderr=err,
             start_new_session=True,
@@ -180,7 +182,50 @@ def _clean_lines(text):
     return lines
 
 
-def normalize(run):
+STATS_OPTIONS = ("--stats", "--stats-all", "--stats-compact")
+# The first line of the statistics Ethos prints after its verdict.
+_STATS_START = re.compile(r"^(=+|mkExprCount = \d+)$")
+_STATS_COUNTER = re.compile(r"^(\w+) = \d+(us)?$")
+_STATS_MAP = re.compile(r"^(ruleCount|progCount|checkTime|mkExpr) = \{ (.*) \}$")
+_STATS_ROW = re.compile(r"^\s*(.*): (\d+)(\s.*)?$")
+_NUMBER = re.compile(r"\d+(\.\d+)?")
+
+
+def normalize_stats(lines):
+    """The statistics of --stats, --stats-all and --stats-compact as compared.
+
+    Kept: every line's shape, the rules and programs listed, and how many
+    times each was used. Masked as <n>: times, percentages and the counters
+    of Ethos's term store (mkExprCount, deleteExprCount, ...), which
+    depend on how terms are stored. The rows are sorted by name, since Ethos
+    orders them by time."""
+    out, rows = [], []
+
+    def flush():
+        out.extend(sorted(rows))
+        rows.clear()
+
+    for line in lines:
+        if m := _STATS_COUNTER.match(line):
+            flush()
+            out.append(f"{m[1]} = <n>{m[2] or ''}")
+        elif m := _STATS_MAP.match(line):
+            flush()
+            items = m[2].split(", ")
+            if m[1] in ("checkTime", "mkExpr"):
+                items = [i.rsplit(": ", 1)[0] + ": <n>" for i in items]
+            out.append(f"{m[1]} = {{ {', '.join(sorted(items))} }}")
+        elif (m := _STATS_ROW.match(line)) and not line.startswith("="):
+            rest = " ".join(_NUMBER.sub("<n>", m[3] or "").split())
+            rows.append(f"{m[1].strip()}: {m[2]} {rest}".rstrip())
+        else:
+            flush()
+            out.append(line)
+    flush()
+    return out
+
+
+def normalize(run, args=()):
     """Returns the observable behaviour of a run, as compared by `run`.
 
     - outcome: "timeout", "correct", "incomplete", "success-other" (exit 0
@@ -189,6 +234,8 @@ def normalize(run):
     - stdout: compared only when the outcome is not "error". The C++ checker
       aborts on errors, so stdout buffered at that point is lost.
     - stderr: compared always, without the C++ "Fatal failure within" line.
+    - with a --stats option in `args`, the statistics after the verdict are
+      compared as normalize_stats describes.
     """
     if run.timed_out:
         return {"outcome": "timeout", "stdout": [], "stderr": []}
@@ -201,7 +248,13 @@ def normalize(run):
     err_lines = _clean_lines("\n".join(err_lines))
     if run.exit_code != 0:
         return {"outcome": "error", "stdout": [], "stderr": err_lines}
-    verdict = out_lines[-1] if out_lines else ""
+    if any(a in STATS_OPTIONS for a in args):
+        start = next((i for i, l in enumerate(out_lines) if _STATS_START.match(l)),
+                     len(out_lines))
+        out_lines = out_lines[:start] + normalize_stats(out_lines[start:])
+        verdict = out_lines[start - 1] if start else ""
+    else:
+        verdict = out_lines[-1] if out_lines else ""
     outcome = verdict if verdict in ("correct", "incomplete") else "success-other"
     return {"outcome": outcome, "stdout": out_lines, "stderr": err_lines}
 
@@ -218,6 +271,7 @@ class Case:
     cwd: str         # working directory
     path: Path       # main input file
     root: Path       # directory whose contents the case may include
+    stdin: Path = None  # file to read standard input from (default: empty)
 
 
 def regression_cases(tests_dir):
@@ -246,8 +300,8 @@ def regression_cases(tests_dir):
 
 
 # Ethos's options set to their non-default values (src/state.cpp, Options),
-# one at a time and then all together. The --stats options are left out:
-# their output contains timings, which differ between runs.
+# one at a time and then all together. The --stats options are in
+# STATS_OPTION_SETS: their output contains timings, compared masked.
 _NON_DEFAULT_OPTIONS = [
     "--no-parse-let",
     "--no-print-dag",
@@ -259,6 +313,78 @@ _NON_DEFAULT_OPTIONS = [
     "--reference-define-fun",
 ]
 ETHOS_OPTION_SETS = [[o] for o in _NON_DEFAULT_OPTIONS] + [_NON_DEFAULT_OPTIONS]
+
+# The statistics options (--stats-option-sets); see normalize_stats for what
+# of their output is compared.
+STATS_OPTION_SETS = [["--stats"], ["--stats-all"], ["--stats-compact"],
+                     ["--stats-all", "--stats-compact"]]
+
+CLI_DIR = HERE / "cli"
+
+# Command-line cases: (name, arguments, file for standard input). They run
+# in cli/, whose files are described in their first lines. Left out:
+# --show-config, which prints the checker's own name and version.
+CLI_CASES = [
+    ("help", ["--help"], None),
+    ("help-after-file", ["proof.cpc", "--help"], None),
+    ("help-after-unknown-option", ["--bogus", "--help"], None),
+    ("trace", ["-t", "state", "proof.cpc"], None),
+    ("trace-without-tag", ["-t"], None),
+    ("verbose", ["-v", "proof.cpc"], None),
+    ("unknown-option", ["--bogus", "proof.cpc"], None),
+    ("unknown-option-after-file", ["proof.cpc", "--bogus"], None),
+    ("unknown-no-option", ["--no-bogus", "proof.cpc"], None),
+    ("option-with-value", ["--normalize-num=true", "proof.cpc"], None),
+    ("two-files", ["proof.cpc", "sig.eo"], None),
+    ("missing-file", ["missing.cpc"], None),
+    ("directory", ["."], None),
+    ("empty-file", ["empty.cpc"], None),
+    ("signature-only", ["sig.eo"], None),
+    ("no-input-empty-stdin", [], None),
+    ("stdin", ["--include=sig.eo"], "proof.cpc"),
+    ("stdin-error", ["--include=sig.eo"], "proof-bad.cpc"),
+    ("stdin-includes", [], "proof-includes.cpc"),
+    ("without-include", ["proof.cpc"], None),
+    ("include", ["--include=sig.eo", "proof.cpc"], None),
+    ("include-after-file", ["proof.cpc", "--include=sig.eo"], None),
+    ("include-twice", ["--include=sig.eo", "--include=sig.eo", "proof.cpc"], None),
+    ("include-and-include-command", ["--include=sig.eo", "proof-includes.cpc"], None),
+    ("include-missing", ["--include=missing.eo", "proof.cpc"], None),
+    ("include-empty", ["--include=", "proof.cpc"], None),
+    ("include-proof", ["--include=proof-includes.cpc", "empty.cpc"], None),
+    ("include-error", ["--include=sig.eo", "proof-bad.cpc"], None),
+    ("include-then-option", ["--include=sig.eo", "--no-rule-sym-table", "proof.cpc"], None),
+    ("include-stats", ["--include=sig.eo", "--stats-all", "proof.cpc"], None),
+    ("reference", ["--include=ref-sig.eo", "--reference=ref.smt2", "ref-proof.cpc"], None),
+    ("reference-unasserted", ["--include=ref-sig.eo", "--reference=ref.smt2", "ref-bad.cpc"], None),
+    ("reference-before-signature", ["--reference=ref.smt2", "--include=ref-sig.eo", "ref-proof.cpc"], None),
+    ("reference-twice", ["--include=ref-sig.eo", "--reference=ref.smt2", "--reference=ref.smt2",
+                         "ref-proof.cpc"], None),
+    ("reference-missing", ["--include=ref-sig.eo", "--reference=missing.smt2", "ref-proof.cpc"], None),
+    ("reference-define-fun", ["--include=ref-sig.eo", "--reference-define-fun",
+                              "--reference=ref.smt2", "ref-proof.cpc"], None),
+    # From standard input the proof is not an included file, so reference
+    # checking stays on (for a file it is turned off again; see
+    # reference-unasserted).
+    ("reference-stdin", ["--include=ref-sig.eo", "--reference=ref.smt2"], "ref-proof.cpc"),
+    ("reference-stdin-unasserted", ["--include=ref-sig.eo", "--reference=ref.smt2"],
+     "ref-bad.cpc"),
+]
+
+
+def cli_cases():
+    """The command-line cases of CLI_CASES, named cli/<name>."""
+    return [
+        Case(
+            name=f"cli/{name}",
+            args=args,
+            cwd=str(CLI_DIR),
+            path=CLI_DIR / (stdin or "sig.eo"),
+            root=CLI_DIR,
+            stdin=CLI_DIR / stdin if stdin else None,
+        )
+        for name, args, stdin in CLI_CASES
+    ]
 
 
 def with_options(case, options):
@@ -321,6 +447,8 @@ def cache_key(ref_sha, case, timeout):
     parts = [ref_sha, case.name, " ".join(case.args), case.cwd,
              sha256_file(case.path), root_fingerprint(case.root), str(timeout),
              MEASUREMENT]
+    if case.stdin is not None:
+        parts.append("stdin:" + sha256_file(case.stdin))
     return hashlib.sha256("\0".join(parts).encode()).hexdigest()
 
 
@@ -431,13 +559,17 @@ def cmd_run(args):
     option_sets = [[]]
     if args.all_option_sets:
         option_sets += ETHOS_OPTION_SETS
+    if args.stats_option_sets:
+        option_sets += STATS_OPTION_SETS
     option_sets += [shlex.split(o) for o in args.options or []]
     cases = [with_options(c, opts) for c in cases for opts in option_sets]
+    if args.cli:
+        cases += cli_cases()   # not run under the option sets
     if args.filter:
         rx = re.compile(args.filter)
         cases = [c for c in cases if rx.search(c.name)]
     if not cases:
-        sys.exit("error: no cases (give --tests and/or --corpus)")
+        sys.exit("error: no cases (give --tests, --corpus or --cli)")
 
     # Ethos aborts on every error. Never let that write core files into the
     # working directories (the repository, the corpus): children inherit
@@ -453,8 +585,8 @@ def cmd_run(args):
         ref_run = cache.get(key)
         cached = ref_run is not None
         if not cached:
-            ref_run = run_binary(ref_bin, case.args, case.cwd, args.timeout)
-        cand_run = run_binary(cand_bin, case.args, case.cwd, args.timeout)
+            ref_run = run_binary(ref_bin, case.args, case.cwd, args.timeout, case.stdin)
+        cand_run = run_binary(cand_bin, case.args, case.cwd, args.timeout, case.stdin)
         return case, key, ref_run, cached, cand_run
 
     results = []
@@ -465,7 +597,8 @@ def cmd_run(args):
             case, key, ref_run, cached, cand_run = fut.result()
             if not cached and not ref_run.timed_out:
                 cache.put(key, ref_run)
-            ref_n, cand_n = normalize(ref_run), normalize(cand_run)
+            ref_n = normalize(ref_run, case.args)
+            cand_n = normalize(cand_run, case.args)
             diffs = compare(ref_n, cand_n)
             results.append((case, ref_run, cand_run, ref_n, cand_n, diffs))
             if not args.quiet and sys.stderr.isatty():
@@ -525,6 +658,7 @@ def cmd_run(args):
                 {
                     "name": case.name,
                     "args": case.args,
+                    "stdin": str(case.stdin) if case.stdin else None,
                     "cwd": case.cwd,
                     "differs_in": diffs,
                     "reference": {**report_form(ref_n), "exit_code": ref_run.exit_code,
@@ -798,6 +932,11 @@ def main():
     p.add_argument("--all-option-sets", action="store_true",
                    help="also run every case with each option set in "
                         "ETHOS_OPTION_SETS")
+    p.add_argument("--stats-option-sets", action="store_true",
+                   help="also run every case with each option set in "
+                        "STATS_OPTION_SETS")
+    p.add_argument("--cli", action="store_true",
+                   help="also run the command-line cases of CLI_CASES")
     p.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 1)
     p.add_argument("--timeout", type=float, default=120.0,
                    help="seconds per binary per case (default 120)")

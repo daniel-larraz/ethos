@@ -92,9 +92,26 @@ That is ten runs per case. `--options '<opts>'` (repeatable) adds a set of
 your own. A variant's name ends in ` [<options>]`, for example
 `tests/simple.eo [--no-print-dag]`, which `--filter` can match.
 
-Not covered: `--stats`, `--stats-all` and `--stats-compact`, whose output
-contains timings that differ between runs; `--help` and `--show-config`;
-and `--include=` and `--reference=`, which take a file.
+`--stats-option-sets` adds four more runs per case: `--stats`,
+`--stats-all`, `--stats-compact`, and the last two together. Their output
+contains timings, so the statistics after the verdict are compared with
+every number masked except how many times each rule and program was used;
+the counters of Ethos's term store (`mkExprCount`, `deleteExprCount`, ...)
+are masked too, as they depend on how terms are stored. Rows are sorted by
+name, since Ethos orders them by time. Running Ethos against a copy of
+itself on the regressions and the corpus gives no difference.
+
+## Command-line cases
+
+`--cli` adds 38 hand-written invocations (`CLI_CASES` in `difftest.py`),
+named `cli/<name>`, run in `cli/` on the small files there: `--help` in
+various positions, `-t` and `-v` (an error in a release build), unknown
+options, two files, missing files and directories, input on standard
+input, `--include=` (missing, empty, twice, after the file, together with
+an `include` command) and `--reference=` (before its signature, twice,
+missing, and from standard input, the one case where reference checking
+stays on). They do not run under the option sets. `--show-config` is left
+out: it prints the checker's own name and version.
 
 ## The proof corpus
 
