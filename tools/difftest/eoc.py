@@ -96,19 +96,41 @@ def list_rules(src, signature):
     return [l.strip() for l in out.splitlines() if l.strip()]
 
 
-def eoc_cases(src, signatures=None):
+def _signature_cases(src, prefix, sig, semantics):
+    cases = [EocCase(f"{prefix}/{run}", [*args, *semantics, sig])
+             for run, args in SIGNATURE_RUNS]
+    for rule in list_rules(src, sig):
+        for run, args in RULE_RUNS:
+            cases.append(EocCase(f"{prefix}/{run}/{rule}",
+                                 [*args, *semantics, sig, rule]))
+    return cases
+
+
+def logos_cases(src, logos):
+    """CPC as logos (https://github.com/cvc5/logos) compiles it: the
+    flattened signature install/defs/Cpc.cached.eo under logos's semantics
+    install/defs/Cpc.eos and smt.eos. `lean --all` is the run logos's
+    install/install-cpc.sh makes; the rest are as for the test signatures.
+    Named eoc/logos/<run>[/<rule>]."""
+    defs = Path(logos).resolve() / "install" / "defs"
+    sig = str(defs / "Cpc.cached.eo")
+    semantics = ["--semantics", str(defs / "Cpc.eos"),
+                 "--smt-semantics", str(defs / "smt.eos")]
+    return ([EocCase("eoc/logos/lean-all", ["lean", "--skip-cvc5", *semantics, "--all", sig])]
+            + _signature_cases(src, "eoc/logos", sig, semantics))
+
+
+def eoc_cases(src, signatures=None, logos=None, tests=True):
     """Every rule of each signature under RULE_RUNS, and each signature
-    under SIGNATURE_RUNS. Named eoc/<signature>/<run>[/<rule>]."""
+    under SIGNATURE_RUNS, under the test semantics; named
+    eoc/<signature>/<run>[/<rule>]. With `logos`, also logos_cases."""
     cases = []
-    for sig in signatures or default_signatures(src):
-        stem = Path(sig).name
-        for run, args in SIGNATURE_RUNS:
-            cases.append(EocCase(f"eoc/{stem}/{run}",
-                                 [*args, "--semantics", SEMANTICS, sig]))
-        for rule in list_rules(src, sig):
-            for run, args in RULE_RUNS:
-                cases.append(EocCase(f"eoc/{stem}/{run}/{rule}",
-                                     [*args, "--semantics", SEMANTICS, sig, rule]))
+    if tests:
+        for sig in signatures or default_signatures(src):
+            cases += _signature_cases(src, f"eoc/{Path(sig).name}", sig,
+                                      ["--semantics", SEMANTICS])
+    if logos:
+        cases += logos_cases(src, logos)
     return cases
 
 
@@ -236,7 +258,7 @@ def cmd_eoc(dt, args):
     for b in (args.ref, args.cand):
         if not os.access(b, os.X_OK):
             sys.exit(f"error: {b} is not an executable")
-    cases = eoc_cases(src, args.signature)
+    cases = eoc_cases(src, args.signature, args.logos, not args.no_tests)
     if args.filter:
         rx = re.compile(args.filter)
         cases = [c for c in cases if rx.search(c.name)]
@@ -294,7 +316,8 @@ def cmd_eoc(dt, args):
 def cmd_eoc_keep(dt, args):
     """Runs one case with one binary and keeps its directory, to look at."""
     src = Path(args.src).resolve()
-    case = next((c for c in eoc_cases(src, args.signature) if c.name == args.case), None)
+    case = next((c for c in eoc_cases(src, args.signature, args.logos)
+                 if c.name == args.case), None)
     if case is None:
         sys.exit(f"error: no case {args.case}")
     r = run_eoc(args.binary, src, case, args.timeout, keep=Path(args.out).resolve())
@@ -312,6 +335,10 @@ def add_parsers(sub, dt):
                    help="signature to compile, relative to --src (repeatable; "
                         "default: the files of tests/ that declare a rule, "
                         "and tools/eoc/test/nary-nil.eo)")
+    p.add_argument("--logos", help="a logos checkout: also compile CPC as logos "
+                                    "does (see logos_cases)")
+    p.add_argument("--no-tests", action="store_true",
+                   help="leave out the signatures of tests/ (with --logos)")
     p.add_argument("--filter", help="only cases whose name matches this regex")
     p.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 1)
     p.add_argument("--timeout", type=float, default=120.0)
@@ -326,5 +353,6 @@ def add_parsers(sub, dt):
     p.add_argument("--src", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--signature", action="append")
+    p.add_argument("--logos")
     p.add_argument("--timeout", type=float, default=120.0)
     p.set_defaults(func=lambda a: cmd_eoc_keep(dt, a))

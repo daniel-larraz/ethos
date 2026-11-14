@@ -253,11 +253,22 @@ the reference's `ethos-eoc` in `work/ref/<rev>/build-eoc/`.
   all 1,052 cases (872 ok, 180 errors, such as `no model semantics found for
   String`). A wrapper that appends a line to `model_smt_gen.eo` after each
   stage, and one that writes an extra file, are both reported.
-- **Not covered:** the CPC signature with its real semantics, which are in
-  the logos repository (`<logos>/install/defs/Cpc.eos`); under the test
-  semantics every CPC rule ends in an error (`--signature
-  work/corpus/cpc/Cpc.eo`). `lean --all` and `batch`, and the cvc5 parse
-  checks of the generated SMT-LIB.
+- **CPC, as logos compiles it:** `--logos <checkout of
+  https://github.com/cvc5/logos>` adds the cases of logos's flattened CPC
+  signature, `install/defs/Cpc.cached.eo`, under logos's semantics
+  (`install/defs/Cpc.eos`, `smt.eos`): `lean --all`, which is what logos's
+  `install/install-cpc.sh` runs, `desugar` and `desugar --natives=eo`, and
+  `vc`, `vc --sygus`, `lean` and `trim-defs` on each of its 610 rules (2,455
+  cases, about 5 minutes on 16 cores). Named `eoc/logos/<run>[/<rule>]`;
+  `--no-tests` leaves out the test signatures. At logos a3232131 and the
+  reference 9217112f, `ethos-eoc` against a copy of itself agrees on all of
+  them (2,450 ok; 5 errors for `beta-reduce` and `trust`, which logos's
+  semantics leave out), and the 13 signature-wide modules `lean --all` writes
+  are byte-identical to logos's checked-in `Cpc/` package, apart from the
+  header its install script adds. Logos pins Ethos at d99865cd, and
+  `tools/eoc` and `plugins` are unchanged from there to 9217112f.
+- **Not covered:** `batch`, and the cvc5 parse checks of the generated
+  SMT-LIB.
 
 `eoc-keep <case> --binary <bin> --src <src> --out <dir>` runs one case with
 one binary and keeps its directory, to look at what it wrote.
