@@ -586,6 +586,9 @@ def cmd_run(args):
     soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
     resource.setrlimit(resource.RLIMIT_CORE, (0, hard))
 
+    # Options given to the candidate only, before each case's arguments.
+    cand_options = [o for opts in args.cand_options or [] for o in shlex.split(opts)]
+
     ref_sha = sha256_file(ref_bin)
     cache = RefCache(None if args.no_cache else Path(args.cache))
 
@@ -595,7 +598,8 @@ def cmd_run(args):
         cached = ref_run is not None
         if not cached:
             ref_run = run_binary(ref_bin, case.args, case.cwd, args.timeout, case.stdin)
-        cand_run = run_binary(cand_bin, case.args, case.cwd, args.timeout, case.stdin)
+        cand_run = run_binary(cand_bin, [*cand_options, *case.args], case.cwd,
+                              args.timeout, case.stdin)
         return case, key, ref_run, cached, cand_run
 
     results = []
@@ -969,6 +973,10 @@ def main():
     p.add_argument("--stats-option-sets", action="store_true",
                    help="also run every case with each option set in "
                         "STATS_OPTION_SETS")
+    p.add_argument("--cand-options", action="append", metavar="OPTS",
+                   help="options given to the candidate only, before each "
+                        "case's arguments, e.g. '--snapshot=cpc.snap' "
+                        "(repeatable); the reference runs without them")
     p.add_argument("--cli", action="store_true",
                    help="also run the command-line cases of CLI_CASES")
     p.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 1)

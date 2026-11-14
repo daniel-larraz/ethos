@@ -89,7 +89,9 @@ non-default value, one at a time, and once with all eight together:
 `--require-proof-of-false`, `--reference-define-fun`
 
 That is ten runs per case. `--options '<opts>'` (repeatable) adds a set of
-your own. A variant's name ends in ` [<options>]`, for example
+your own. `--cand-options '<opts>'` (repeatable) gives options to the
+candidate only, before every case's arguments, for options Ethos does not
+have; the reference runs as usual. A variant's name ends in ` [<options>]`, for example
 `tests/simple.eo [--no-print-dag]`, which `--filter` can match.
 
 `--stats-option-sets` adds four more runs per case: `--stats`,
