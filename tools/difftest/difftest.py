@@ -25,7 +25,10 @@ import hashlib
 import json
 import os
 import re
-import resource
+try:
+    import resource  # POSIX only
+except ImportError:
+    resource = None
 import shlex
 import shutil
 import signal
@@ -64,6 +67,28 @@ OUT_OF_MEMORY_RE = re.compile(r"std::bad_alloc|^GNU MP: Cannot allocate memory"
                               re.MULTILINE)
 
 
+WINDOWS = os.name == "nt"
+EXE = ".exe" if WINDOWS else ""
+
+
+def disable_core_dumps():
+    """Ethos aborts on every error. Never let that write core files into
+    the working directories (the repository, the corpus): children inherit
+    this limit. Windows writes no core files."""
+    if resource is not None:
+        _, hard = resource.getrlimit(resource.RLIMIT_CORE)
+        resource.setrlimit(resource.RLIMIT_CORE, (0, hard))
+
+
+def cmake_env():
+    """The environment for building the reference with CMake. Under MSYS2,
+    as in Ethos's configure.sh, the generator is "MSYS Makefiles"."""
+    env = dict(os.environ)
+    if WINDOWS and "CMAKE_GENERATOR" not in env:
+        env["CMAKE_GENERATOR"] = "MSYS Makefiles"
+    return env
+
+
 def find_gnu_time():
     """Returns the path of GNU time, or None.
 
@@ -73,7 +98,7 @@ def find_gnu_time():
     30 MiB). GNU time is small, and it reads the peak of the process it
     starts.
     """
-    path = shutil.which("time")
+    path = None if WINDOWS else shutil.which("time")
     if not path:
         return None
     try:
@@ -85,11 +110,13 @@ def find_gnu_time():
 
 
 GNU_TIME = find_gnu_time()
+PRLIMIT = sys.platform.startswith("linux") and shutil.which("prlimit")
 
 # Part of the reference cache key: change it whenever the way time or memory
 # is measured, or output is decoded, changes, so that cached results are not
 # mixed with new ones.
-MEASUREMENT = ("gnu-time-1" if GNU_TIME else "wait4-1") + "/bytes-1/blocking-wait-1"
+MEASUREMENT = (("gnu-time-1" if GNU_TIME else "none-1" if WINDOWS else "wait4-1")
+               + "/bytes-1/blocking-wait-1")
 
 
 def run_binary(binary, args, cwd, timeout, stdin=None, memory_mb=None):
@@ -100,14 +127,18 @@ def run_binary(binary, args, cwd, timeout, stdin=None, memory_mb=None):
     when it is installed (see find_gnu_time), and otherwise from wait4, which
     overstates it by the size of the Python process. `stdin` is a file to
     read standard input from; by default it is empty. `memory_mb` limits
-    the address space (with prlimit); a run that fails an allocation under
-    it is marked out_of_memory.
+    the address space (with prlimit, so on Linux only; elsewhere it is
+    ignored); a run that fails an allocation under it is marked
+    out_of_memory.
+
+    On Windows there is no wait4, so the peak RSS is 0, and a timeout kills
+    the process itself rather than a process group.
     """
     with open(stdin or os.devnull, "rb") as stdin_file, \
             tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err, \
             tempfile.NamedTemporaryFile("r") as rss_file:
         command = [str(binary), *args]
-        if memory_mb:
+        if memory_mb and PRLIMIT:
             command = ["prlimit", f"--as={memory_mb << 20}", "--", *command]
         if GNU_TIME:
             command = [GNU_TIME, "-q", "-f", "%M", "-o", rss_file.name, *command]
@@ -118,7 +149,8 @@ def run_binary(binary, args, cwd, timeout, stdin=None, memory_mb=None):
             stdin=stdin_file,
             stdout=out,
             stderr=err,
-            start_new_session=True,
+            **({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if WINDOWS
+               else {"start_new_session": True}),
         )
         # Block in wait4 so that the wall time is exact; a timer kills the
         # process group on timeout. (Polling with growing sleeps rounded
@@ -132,25 +164,35 @@ def run_binary(binary, args, cwd, timeout, stdin=None, memory_mb=None):
                     return
                 state["timed_out"] = True
                 try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
+                    if WINDOWS:
+                        proc.kill()
+                    else:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                except (ProcessLookupError, OSError):
                     pass
 
         timer = threading.Timer(timeout, kill)
         timer.daemon = True
         timer.start()
         try:
-            pid, status, rusage = os.wait4(proc.pid, 0)
+            if WINDOWS:
+                proc.wait()
+                status, rusage = None, None
+            else:
+                pid, status, rusage = os.wait4(proc.pid, 0)
         finally:
             wall = time.monotonic() - start
             with lock:
                 state["reaped"] = True
             timer.cancel()
         timed_out = state["timed_out"]
-        proc.returncode = os.waitstatus_to_exitcode(status)
-        maxrss = rusage.ru_maxrss
-        if sys.platform == "darwin":  # bytes on macOS, KiB on Linux
-            maxrss //= 1024
+        if WINDOWS:
+            maxrss = 0   # proc.returncode is set by wait()
+        else:
+            proc.returncode = os.waitstatus_to_exitcode(status)
+            maxrss = rusage.ru_maxrss
+            if sys.platform == "darwin":  # bytes on macOS, KiB on Linux
+                maxrss //= 1024
         if GNU_TIME and not timed_out:
             # GNU time passes the exit status through; a signal becomes
             # 128 + its number. Both are non-zero, as before.
@@ -609,11 +651,7 @@ def cmd_run(args):
     if not cases:
         sys.exit("error: no cases (give --tests, --corpus, --cli or --bignum)")
 
-    # Ethos aborts on every error. Never let that write core files into the
-    # working directories (the repository, the corpus): children inherit
-    # this limit.
-    soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
-    resource.setrlimit(resource.RLIMIT_CORE, (0, hard))
+    disable_core_dumps()
 
     # Options given to the candidate only, before each case's arguments.
     cand_options = [o for opts in args.cand_options or [] for o in shlex.split(opts)]
@@ -731,7 +769,7 @@ def cmd_build_ref(args):
         check=True, capture_output=True, text=True,
     ).stdout.strip()
     out = Path(args.out).resolve() / rev[:12]
-    binary = out / "build" / "src" / "ethos"
+    binary = out / "build" / "src" / f"ethos{EXE}"
     if binary.exists() and not args.force:
         print(binary)
         if args.eoc:
@@ -755,11 +793,11 @@ def cmd_build_ref(args):
     build = out / "build"
     subprocess.run(
         ["cmake", "-S", str(src), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release"],
-        check=True, stdout=subprocess.DEVNULL,
+        check=True, stdout=subprocess.DEVNULL, env=cmake_env(),
     )
     subprocess.run(
         ["cmake", "--build", str(build), "--target", "ethos", "-j", str(args.jobs)],
-        check=True, stdout=subprocess.DEVNULL,
+        check=True, stdout=subprocess.DEVNULL, env=cmake_env(),
     )
     (out / "REVISION").write_text(rev + "\n")
     print(binary)
@@ -773,18 +811,18 @@ def build_ref_eoc(out, jobs):
     reference in <out>/build-eoc. The build also compiles eoc's semantics
     configuration into <out>/src/tools/eoc/out; eoc.py leaves that out of
     the source tree it copies for each run."""
-    binary = out / "build-eoc" / "ethos-eoc"
+    binary = out / "build-eoc" / f"ethos-eoc{EXE}"
     if binary.exists():
         return binary
     subprocess.run(
         ["cmake", "-S", str(out / "src" / "plugins"), "-B", str(out / "build-eoc"),
          "-DCMAKE_BUILD_TYPE=Release"],
-        check=True, stdout=subprocess.DEVNULL,
+        check=True, stdout=subprocess.DEVNULL, env=cmake_env(),
     )
     subprocess.run(
         ["cmake", "--build", str(out / "build-eoc"), "--target", "ethos-eoc",
          "-j", str(jobs)],
-        check=True, stdout=subprocess.DEVNULL,
+        check=True, stdout=subprocess.DEVNULL, env=cmake_env(),
     )
     return binary
 

@@ -274,6 +274,11 @@ def make_contexts(root, tests_dir, corpus_dir):
 CRASH_CODES = {
     132: "SIGILL", 135: "SIGBUS", 136: "SIGFPE", 137: "SIGKILL", 139: "SIGSEGV",
     -4: "SIGILL", -7: "SIGBUS", -8: "SIGFPE", -9: "SIGKILL", -11: "SIGSEGV",
+    # Windows: NTSTATUS exception codes as exit statuses (an abort, by
+    # contrast, is exit status 3, an ordinary error)
+    0xC0000005: "ACCESS_VIOLATION", 0xC00000FD: "STACK_OVERFLOW",
+    0xC000001D: "ILLEGAL_INSTRUCTION", 0xC0000094: "INTEGER_DIVIDE_BY_ZERO",
+    0xC0000409: "STACK_BUFFER_OVERRUN",
 }
 
 _MASK_PATH = re.compile(r"/\S*?(\.eo|\.cpc|\.smt2)")
@@ -453,9 +458,7 @@ def cmd_fuzz(dt, args):
     fz = Fuzzer(dt, args, seeds, ctx, out)
 
     # Ethos aborts on errors; never leave core files behind.
-    import resource
-    soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
-    resource.setrlimit(resource.RLIMIT_CORE, (0, hard))
+    dt.disable_core_dumps()
 
     deadline = time.monotonic() + args.time
     per_worker = None if args.iterations is None else -(-args.iterations // args.jobs)
@@ -519,12 +522,10 @@ def _expected_form(dt, run, path):
     return {"outcome": n["outcome"], "stdout": sub(n["stdout"]), "stderr": sub(n["stderr"])}
 
 
-def _prepare_replay(args):
+def _prepare_replay(dt, args):
     findings = Path(args.findings).resolve()
     ctx = make_contexts(Path(args.work).resolve() / "replay-ctx", args.tests, args.corpus)
-    import resource
-    _, hard = resource.getrlimit(resource.RLIMIT_CORE)
-    resource.setrlimit(resource.RLIMIT_CORE, (0, hard))
+    dt.disable_core_dumps()
     return findings, ctx
 
 
@@ -535,7 +536,7 @@ def cmd_fuzz_replay(dt, args):
     candidate keeps on purpose (typically: Ethos has undefined behaviour and
     the candidate reports an error). It passes when the candidate's output
     is exactly the one recorded there, whatever Ethos does."""
-    findings, ctx = _prepare_replay(args)
+    findings, ctx = _prepare_replay(dt, args)
     accepted = _load_accepted(findings)
     still, fixed, crashes, skipped, ok_accepted = [], [], [], [], []
     for d in sorted(p for p in findings.iterdir() if (p / "info.json").exists()):
@@ -582,7 +583,7 @@ def cmd_fuzz_replay(dt, args):
 def cmd_fuzz_accept(dt, args):
     """Records the candidate's current output on findings as accepted
     differences, with a reason, in the findings directory's accepted.json."""
-    findings, ctx = _prepare_replay(args)
+    findings, ctx = _prepare_replay(dt, args)
     accepted = _load_accepted(findings)
     for fid in args.ids:
         d = findings / fid
