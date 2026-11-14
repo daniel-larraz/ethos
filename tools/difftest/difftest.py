@@ -366,6 +366,27 @@ def compare(ref, cand):
     return diffs
 
 
+REPORT_MAX_LINES = 1000   # per stream and side, in the JSON report
+REPORT_MAX_CHARS = 2000   # per line
+
+
+def report_form(n):
+    """A normalized output as stored in the JSON report: at most
+    REPORT_MAX_LINES lines per stream, each cut to REPORT_MAX_CHARS
+    characters. A cut stream has its full line count in `<stream>_lines`.
+    Only the report is cut; comparisons always use the whole output."""
+    out = {"outcome": n["outcome"]}
+    for stream in ("stdout", "stderr"):
+        lines = n[stream]
+        kept = [l if len(l) <= REPORT_MAX_CHARS else l[:REPORT_MAX_CHARS] + " ..."
+                for l in lines[:REPORT_MAX_LINES]]
+        out[stream] = kept
+        if len(lines) > REPORT_MAX_LINES or any(len(l) > REPORT_MAX_CHARS for l in lines):
+            out[f"{stream}_lines"] = len(lines)
+            out[f"{stream}_truncated"] = True
+    return out
+
+
 def describe_diff(case_name, ref, cand, diffs):
     lines = [f"--- {case_name}: differs in {', '.join(diffs)}"]
     lines.append(f"    outcome: reference={ref['outcome']} candidate={cand['outcome']}")
@@ -506,10 +527,10 @@ def cmd_run(args):
                     "args": case.args,
                     "cwd": case.cwd,
                     "differs_in": diffs,
-                    "reference": {**ref_n, "exit_code": ref_run.exit_code,
+                    "reference": {**report_form(ref_n), "exit_code": ref_run.exit_code,
                                   "wall_s": round(ref_run.wall_s, 4),
                                   "max_rss_kb": ref_run.max_rss_kb},
-                    "candidate": {**cand_n, "exit_code": cand_run.exit_code,
+                    "candidate": {**report_form(cand_n), "exit_code": cand_run.exit_code,
                                   "wall_s": round(cand_run.wall_s, 4),
                                   "max_rss_kb": cand_run.max_rss_kb},
                 }

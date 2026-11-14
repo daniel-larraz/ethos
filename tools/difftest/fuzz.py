@@ -480,30 +480,76 @@ def cmd_fuzz(dt, args):
     return 1 if real else 0
 
 
-def cmd_fuzz_replay(dt, args):
-    """Reruns saved findings in the same kind of directory they came from."""
+ACCEPTED_FILE = "accepted.json"
+
+
+def _load_accepted(findings):
+    f = findings / ACCEPTED_FILE
+    return json.loads(f.read_text()) if f.exists() else {}
+
+
+def _run_finding(dt, args, ctx, d, info, which):
+    """Runs a saved finding in a fresh copy of its context. Returns the
+    runs of the binaries named in `which` and the input's path."""
+    fdir, cwd = ctx[info["context"]]
+    path = fdir / f"fuzz-w0{info['suffix']}"
+    shutil.copyfile(d / f"input{info['suffix']}", path)
+    a = [*info["options"], str(path)]
+    runs = [dt.run_binary(Path(b).resolve(), a, str(cwd), args.timeout) for b in which]
+    return runs, path
+
+
+def _expected_form(dt, run, path):
+    """The normalized output of a run with the input's path as <input>, as
+    stored in accepted.json."""
+    n = dt.normalize(run)
+    sub = lambda lines: [l.replace(str(path), "<input>") for l in lines]
+    return {"outcome": n["outcome"], "stdout": sub(n["stdout"]), "stderr": sub(n["stderr"])}
+
+
+def _prepare_replay(args):
     findings = Path(args.findings).resolve()
-    work = Path(args.work).resolve()
-    ctx = make_contexts(work / "replay-ctx", args.tests, args.corpus)
+    ctx = make_contexts(Path(args.work).resolve() / "replay-ctx", args.tests, args.corpus)
     import resource
-    soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
+    _, hard = resource.getrlimit(resource.RLIMIT_CORE)
     resource.setrlimit(resource.RLIMIT_CORE, (0, hard))
-    still, fixed, crashes, skipped = [], [], [], []
+    return findings, ctx
+
+
+def cmd_fuzz_replay(dt, args):
+    """Reruns saved findings in the same kind of directory they came from.
+
+    A finding listed in the directory's accepted.json is a difference the
+    candidate keeps on purpose (typically: Ethos has undefined behaviour and
+    the candidate reports an error). It passes when the candidate's output
+    is exactly the one recorded there, whatever Ethos does."""
+    findings, ctx = _prepare_replay(args)
+    accepted = _load_accepted(findings)
+    still, fixed, crashes, skipped, ok_accepted = [], [], [], [], []
     for d in sorted(p for p in findings.iterdir() if (p / "info.json").exists()):
         info = json.loads((d / "info.json").read_text())
+        if info["category"] == "reference-crash":
+            crashes.append(d.name)
+            continue
         if info["context"] not in ctx:
             skipped.append(d.name)  # needs --tests or --corpus, not given
             continue
-        fdir, cwd = ctx[info["context"]]
-        path = fdir / f"fuzz-w0{info['suffix']}"
-        shutil.copyfile(d / f"input{info['suffix']}", path)
-        a = [*info["options"], str(path)]
-        ref = dt.run_binary(Path(args.ref).resolve(), a, str(cwd), args.timeout)
-        cand = dt.run_binary(Path(args.cand).resolve(), a, str(cwd), args.timeout)
-        r = classify(dt, ref, cand)
-        if info["category"] == "reference-crash":
-            crashes.append(d.name)
-        elif r is None:
+        if d.name in accepted:
+            (cand,), path = _run_finding(dt, args, ctx, d, info, [args.cand])
+            got = _expected_form(dt, cand, path)
+            want = accepted[d.name]["candidate"]
+            if got == want:
+                ok_accepted.append(d.name)
+                continue
+            still.append(d.name)
+            if not args.quiet:
+                print(dt.describe_diff(
+                    f"{d.name} ({info['seed']}): accepted difference, but the "
+                    f"candidate's output changed (- recorded, + now)",
+                    want, got, dt.compare(want, got) or ["outcome"]))
+            continue
+        (ref, cand), _ = _run_finding(dt, args, ctx, d, info, [args.ref, args.cand])
+        if classify(dt, ref, cand) is None:
             fixed.append(d.name)
         else:
             still.append(d.name)
@@ -511,10 +557,39 @@ def cmd_fuzz_replay(dt, args):
                 ref_n, cand_n = dt.normalize(ref), dt.normalize(cand)
                 print(dt.describe_diff(f"{d.name} ({info['seed']})", ref_n, cand_n,
                                        dt.compare(ref_n, cand_n) or ["outcome"]))
+    stale = sorted(set(accepted) - {d.name for d in findings.iterdir()})
+    for name in stale:
+        print(f"accepted.json names {name}, which is not a finding here")
     print(f"findings: {len(still)} still differ, {len(fixed)} fixed, "
+          f"{len(ok_accepted)} accepted differences, "
           f"{len(crashes)} Ethos crashes (not compared)"
           + (f", {len(skipped)} skipped (need --tests or --corpus)" if skipped else ""))
-    return 1 if still else 0
+    return 1 if still or stale else 0
+
+
+def cmd_fuzz_accept(dt, args):
+    """Records the candidate's current output on findings as accepted
+    differences, with a reason, in the findings directory's accepted.json."""
+    findings, ctx = _prepare_replay(args)
+    accepted = _load_accepted(findings)
+    for fid in args.ids:
+        d = findings / fid
+        if not (d / "info.json").exists():
+            raise SystemExit(f"no finding {fid} in {findings}")
+        info = json.loads((d / "info.json").read_text())
+        if info["category"] == "reference-crash":
+            raise SystemExit(f"{fid} is an Ethos crash; replay never compares it")
+        if info["context"] not in ctx:
+            raise SystemExit(f"{fid} needs --{info['context']}")
+        (cand,), path = _run_finding(dt, args, ctx, d, info, [args.cand])
+        if cand.timed_out:
+            raise SystemExit(f"{fid}: the candidate times out; that cannot be accepted")
+        accepted[fid] = {"reason": args.reason,
+                         "candidate": _expected_form(dt, cand, path)}
+        print(f"{fid}: accepted ({_expected_form(dt, cand, path)['outcome']})")
+    (findings / ACCEPTED_FILE).write_text(
+        json.dumps(dict(sorted(accepted.items())), indent=1) + "\n")
+    return 0
 
 
 def add_parsers(sub, dt):
@@ -551,3 +626,15 @@ def add_parsers(sub, dt):
     p.add_argument("--work", default=str(dt.DEFAULT_WORK / "fuzz"))
     p.add_argument("--quiet", "-q", action="store_true")
     p.set_defaults(func=lambda a: cmd_fuzz_replay(dt, a))
+
+    p = sub.add_parser("fuzz-accept",
+                       help="record findings as accepted differences (see fuzz.py)")
+    p.add_argument("ids", nargs="+", help="finding ids")
+    p.add_argument("--cand", required=True)
+    p.add_argument("--reason", required=True, help="why the difference is kept")
+    p.add_argument("--findings", required=True, help="a findings directory")
+    p.add_argument("--tests", help="Ethos tests/ directory (for findings from tests)")
+    p.add_argument("--corpus", help="proof corpus (for findings from proofs)")
+    p.add_argument("--timeout", type=float, default=10)
+    p.add_argument("--work", default=str(dt.DEFAULT_WORK / "fuzz"))
+    p.set_defaults(func=lambda a: cmd_fuzz_accept(dt, a))

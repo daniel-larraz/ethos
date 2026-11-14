@@ -30,6 +30,11 @@ cd tools/difftest
 the first 20 differences as unified diffs (`--show N`, `--show-all`), then a
 summary. `--filter REGEX` restricts the cases by name, for example
 `--filter 'tests/.*list'`.
+The JSON report (`--report`) has every case with both normalized outputs,
+exit codes, times and peak memory. Each stream is cut to its first 1,000
+lines and each line to 2,000 characters, with the full line count in
+`stderr_lines` or `stdout_lines`; some runs print gigabytes. Comparisons
+always use the whole output.
 
 ## What is compared
 
@@ -177,7 +182,18 @@ mutant on which they differ, compared as `run` compares them:
   of `--time` and the same `--jobs`, a run is repeated exactly.
 
 `fuzz-replay --findings <dir>` reruns saved findings in the same kind of
-directory and reports which still differ, for example after a fix.
+directory and reports which still differ, for example after a fix. It exits 1
+if any does.
+
+Some differences are kept on purpose: where Ethos has undefined behaviour
+(it reads past the end of a vector, as in cvc5/ethos#257), its output is
+whatever memory held, and the candidate should stop with an error instead.
+`fuzz-accept <id>... --cand <candidate> --reason <text> --findings <dir>`
+records such findings in `<dir>/accepted.json`, with the reason and the
+candidate's current output (the input's path shown as `<input>`). Replay
+then does not run Ethos on them; it passes them when the candidate's output
+is exactly the recorded one, and fails otherwise, so a change to it is
+noticed.
 
 Findings worth keeping are copied into `fuzz-findings/<date>-seed<N>/`, which
 is under version control, so that they serve as regression tests. Paths in
@@ -185,6 +201,8 @@ their `info.json` are shortened to `<ctx>/`; `SUMMARY.json` has the counts.
 `fuzz-findings/2026-11-14-seed1/` holds the first run against pathos: 888,900
 mutants in 10 minutes, 99.95% agreeing, 40 groups of differences and one
 Ethos crash.
+Four of the groups are accepted differences: `eo::` operators evaluated
+without an argument they read.
 
 ## Reference cache
 
