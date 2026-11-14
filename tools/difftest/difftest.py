@@ -410,6 +410,17 @@ def cli_cases():
     ]
 
 
+def bignum_cases(work):
+    """The large-number cases of bignum.py, generated into <work>/bignum
+    and named bignum/<file>."""
+    import bignum
+    return [
+        Case(name=f"bignum/{p.name}", args=[str(p)], cwd=str(p.parent),
+             path=p, root=p.parent)
+        for p in bignum.generate(Path(work) / "bignum")
+    ]
+
+
 def with_options(case, options):
     """The case run with `options` before its input file."""
     if not options:
@@ -588,11 +599,13 @@ def cmd_run(args):
     cases = [with_options(c, opts) for c in cases for opts in option_sets]
     if args.cli:
         cases += cli_cases()   # not run under the option sets
+    if args.bignum:
+        cases += bignum_cases(DEFAULT_WORK)   # nor these
     if args.filter:
         rx = re.compile(args.filter)
         cases = [c for c in cases if rx.search(c.name)]
     if not cases:
-        sys.exit("error: no cases (give --tests, --corpus or --cli)")
+        sys.exit("error: no cases (give --tests, --corpus, --cli or --bignum)")
 
     # Ethos aborts on every error. Never let that write core files into the
     # working directories (the repository, the corpus): children inherit
@@ -993,6 +1006,8 @@ def main():
                         "(repeatable); the reference runs without them")
     p.add_argument("--cli", action="store_true",
                    help="also run the command-line cases of CLI_CASES")
+    p.add_argument("--bignum", action="store_true",
+                   help="also run the large-number arithmetic cases of bignum.py")
     p.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 1)
     p.add_argument("--timeout", type=float, default=120.0,
                    help="seconds per binary per case (default 120)")
