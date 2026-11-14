@@ -56,9 +56,11 @@ class Run:
     out_of_memory: bool = False  # hit run_binary's memory_mb (and aborted)
 
 
-# How Ethos (a C++ std::bad_alloc) and a Rust binary (the default allocation
-# error handler) stop when an allocation fails.
-OUT_OF_MEMORY_RE = re.compile(r"std::bad_alloc|^memory allocation of \d+ bytes failed",
+# How Ethos (a C++ std::bad_alloc, or GMP's own message when GMP cannot
+# allocate) and a Rust binary (the default allocation error handler) stop when
+# an allocation fails.
+OUT_OF_MEMORY_RE = re.compile(r"std::bad_alloc|^GNU MP: Cannot allocate memory"
+                              r"|^memory allocation of \d+ bytes failed",
                               re.MULTILINE)
 
 
