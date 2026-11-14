@@ -85,7 +85,8 @@ class EocRun:
     outcome: str
     stdout: list
     stderr: list
-    files: dict        # path relative to the run directory -> bytes
+    files: dict        # path relative to the run directory -> bytes, or the
+                       # SHA-256 (str) of a file both runs wrote the same
     wall_s: float
 
 
@@ -205,6 +206,19 @@ def run_eoc(binary, src, case, timeout, keep=None):
         return EocRun(outcome, o, e, files, wall)
 
 
+def _digest(data):
+    return data if isinstance(data, str) else hashlib.sha256(data).hexdigest()
+
+
+def _shrink(ref, cand):
+    """Keeps the bytes of the files that differ between the two runs and
+    only a digest of the others, so that memory does not grow with the
+    number of cases (each run's directory holds a copy of the sources)."""
+    for p in ref.files.keys() & cand.files.keys():
+        if ref.files[p] == cand.files[p]:
+            ref.files[p] = cand.files[p] = _digest(ref.files[p])
+
+
 def compare_eoc(ref, cand):
     diffs = []
     if ref.outcome != cand.outcome:
@@ -266,8 +280,10 @@ def cmd_eoc(dt, args):
         sys.exit("error: no cases")
 
     def work(case):
-        return (case, run_eoc(args.ref, src, case, args.timeout),
-                run_eoc(args.cand, src, case, args.timeout))
+        ref = run_eoc(args.ref, src, case, args.timeout)
+        cand = run_eoc(args.cand, src, case, args.timeout)
+        _shrink(ref, cand)
+        return case, ref, cand
 
     results = []
     started = time.monotonic()
@@ -293,8 +309,7 @@ def cmd_eoc(dt, args):
     print(f"driver time: reference {rt:.1f} s, candidate {ct:.1f} s "
           "(includes the Python driver)")
     if args.report:
-        digest = lambda files: {p: hashlib.sha256(b).hexdigest()
-                                for p, b in sorted(files.items())}
+        digest = lambda files: {p: _digest(b) for p, b in sorted(files.items())}
         Path(args.report).write_text(json.dumps({
             "reference": str(Path(args.ref).resolve()),
             "candidate": str(Path(args.cand).resolve()),
