@@ -99,5 +99,18 @@
     "Error: <input>:19.32: Too few arguments when evaluating literal op EVAL_REQUIRES, 2 arguments [false false]"
    ]
   }
+ },
+ "bd8cdb94afbe": {
+  "reason": "Ethos forgets a live term when it deletes another whose children are a prefix of its own (ExprTrie::remove erases the whole branch), and builds a second, distinct copy of it later; here the overload search builds and drops (BitVec), so the two (BitVec n) differ and are not let-bound when printed. The candidate keeps one term for equal terms.",
+  "candidate": {
+   "outcome": "error",
+   "stdout": [],
+   "stderr": [
+    "No overload found when constructing application [BitVec]",
+    "Error: <input>:7.13: Type checking failed:",
+    "Expression: (eo::define ((_v0 (BitVec n))) (-> _v0 (-> (BitVec) _v0)))",
+    "Message: Incorrect arity for BitVec, which expects 1 arguments but 0 were provided"
+   ]
+  }
  }
 }
