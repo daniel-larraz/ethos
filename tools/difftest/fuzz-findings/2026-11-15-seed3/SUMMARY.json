@@ -1,0 +1,122 @@
+{
+ "seed": "3",
+ "runs": 22236159,
+ "agree": 22226677,
+ "both_timed_out": 1203,
+ "reference": "/home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/ref/9217112fc9b1/build/src/ethos",
+ "candidate": "/tmp/claude-1000/-home-daniel-Projects-cvc5-ethos-rust/0ce11974-82c1-430f-9987-f8285d34926e/scratchpad/pathos-fuzz",
+ "findings": [
+  {
+   "id": "46da8e265b8a",
+   "category": "candidate-crash",
+   "count": 1,
+   "seed": "tests/quoted.eo",
+   "options": [],
+   "signature": "candidate-crash|thread 'main' (0) panicked at crates/pathos-elab/src/expr_parser.rs:0:0:"
+  },
+  {
+   "id": "d55e0111bf9f",
+   "category": "candidate-out-of-memory",
+   "count": 3,
+   "seed": "tests/nground-nil-v3.eo",
+   "options": [],
+   "signature": "candidate-out-of-memory|GNU MP: Cannot allocate memory (size=0)|memory allocation of 0 bytes failed"
+  },
+  {
+   "id": "7d63f43fe9fe",
+   "category": "differ-stderr",
+   "count": 550,
+   "seed": "tests/overload-standalone.eo",
+   "options": [
+    "--require-proof-of-false"
+   ],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_CONS, 0 arguments|Wrong number of arguments when applying literal op EVAL_CONS, 0 arguments"
+  },
+  {
+   "id": "3736dd030ae7",
+   "category": "differ-stderr",
+   "count": 183,
+   "seed": "tests/eo-arg-ex.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments|Wrong number of arguments when applying literal op EVAL_REQUIRES, 0 arguments"
+  },
+  {
+   "id": "3eb9b558874e",
+   "category": "differ-stderr",
+   "count": 52,
+   "seed": "tests/datatypes-split-rule-param-uinst.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_NTH, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_NTH, 0 arguments"
+  },
+  {
+   "id": "6f008521b732",
+   "category": "differ-stderr",
+   "count": 40,
+   "seed": "tests/examples-nary.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments"
+  },
+  {
+   "id": "9dd82f19efb5",
+   "category": "differ-stderr",
+   "count": 8,
+   "seed": "tests/datatypes-split-rule-param-uinst.eo",
+   "options": [
+    "--no-normalize-hex"
+   ],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments"
+  },
+  {
+   "id": "bf776a04c4f0",
+   "category": "differ-stderr",
+   "count": 5,
+   "seed": "tests/let-binder-ex.eo",
+   "options": [],
+   "signature": "differ-stderr|Unknown category for parameterized operator myLet|Unknown category for parameterized operator myLet"
+  },
+  {
+   "id": "bd8cdb94afbe",
+   "category": "differ-stderr",
+   "count": 3,
+   "seed": "tests/bv-concat.eo",
+   "options": [],
+   "signature": "differ-stderr|No overload found when constructing application [BitVec]|No overload found when constructing application [BitVec]"
+  },
+  {
+   "id": "9e1539623066",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/eo-arg-ex.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_IF_THEN_ELSE, 0 arguments|Wrong number of arguments when applying literal op EVAL_IF_THEN_ELSE, 0 arguments"
+  },
+  {
+   "id": "53f79b61d4c3",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/datatypes-split-rule-param-uinst.eo",
+   "options": [
+    "--require-proof-of-false"
+   ],
+   "signature": "differ-stderr|No overload found when constructing application [x, (s x)]|No overload found when constructing application [x, (s x)]"
+  },
+  {
+   "id": "2a8d3e261770",
+   "category": "differ-stderr",
+   "count": 1,
+   "seed": "tests/rare-example.eo",
+   "options": [],
+   "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_IS_EQ, 0 arguments|Wrong number of arguments when applying literal op EVAL_IS_EQ, 0 arguments"
+  },
+  {
+   "id": "5c8e2fd48d70",
+   "category": "reference-crash",
+   "count": 7431,
+   "seed": "tests/or-variant.eo",
+   "options": [
+    "--require-proof-of-false"
+   ],
+   "signature": "reference-crash|SIGSEGV"
+  }
+ ]
+}

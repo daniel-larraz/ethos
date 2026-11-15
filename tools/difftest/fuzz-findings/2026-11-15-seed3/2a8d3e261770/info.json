@@ -1,0 +1,34 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_IS_EQ, 0 arguments|Wrong number of arguments when applying literal op EVAL_IS_EQ, 0 arguments",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/rare-example.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 0, iteration 3474441",
+ "id": "2a8d3e261770",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_IS_EQ, 3 arguments",
+   "Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 2 arguments",
+   "...expected associative application to end in true, got (-> Bool Bool)",
+   "No program defined for elim_singleton_list_lhs",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w0.eo:47.56: A step of rule bool-and-true failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (_ and (_ (_ and (_ (_ and true) a)) b)))) (_ (= (_ (_ and (_ _v0 true)) c)) (elim_singleton_list_lhs and (_ (_ and (_ _v0 a)) b))))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_IS_EQ, 3 arguments",
+   "Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w0.eo:47.56: Too few arguments when evaluating literal op EVAL_LIST_CONCAT, 2 arguments [and (_ (_ and (_ (_ and true) a)) b)]"
+  ],
+  "exit_code": 1
+ }
+}

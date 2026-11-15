@@ -1,0 +1,30 @@
+{
+ "signature": "reference-crash|SIGSEGV",
+ "category": "reference-crash",
+ "count": 1,
+ "seed": "tests/or-variant.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--require-proof-of-false"
+ ],
+ "iteration": "worker 1, iteration 941",
+ "id": "5c8e2fd48d70",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 1 arguments"
+  ],
+  "exit_code": 139
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 1 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w1.eo:11.69: Too few arguments when evaluating literal op EVAL_REQUIRES, 1 arguments [a]"
+  ],
+  "exit_code": 1
+ }
+}

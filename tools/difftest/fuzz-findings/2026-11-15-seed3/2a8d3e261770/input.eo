@@ -1,0 +1,50 @@
+(declare-parameterized-const = ((T Type :implicit)) (-> T T Bool))
+
+(declare-const and (-> Bool Bool Bool) :left-assoc-nil true)
+
+(declare-const a Bool)
+(declare-const b Bool)
+(declare-const c Bool)
+
+
+
+(program elim_singleton_list_rhs ((T Type) (f (-> T T T)) (t T) (s T :list))
+  :signature ((-> T T T) T) T
+  (
+  ((elim_singleton_list_rhs f (f t s)) (eo::ite (eo::is_eq s (eo::nil f (eo::typeof (f t s))) (eo::nil f (eo::typeof (f t s)))) t (f t s)))
+  
+  )
+)
+(program elim_singleton_list_lhs ((T Type)  (t T :list) (s T))
+  :signature ( T) T
+  
+)
+
+
+
+
+
+
+
+
+
+
+
+(declare-rule bool-and-true ((xs Bool :list) (ys Bool :list))
+  :args (xs ys)
+  :conclusion (= (and xs true ys) (elim_singleton_list_lhs and (eo::list_concat and xs )))
+)
+
+(declare-rule bool-and-false ((xs Bool :list) (ys Bool :list))
+  :args (xs ys)
+  :conclusion (= (and xs false ys) false)
+)
+
+
+(step @p7  :rule bool-and-false :args ((and a) true))
+
+
+(step @p9  :rule bool-and-true :args ((and a b) (and c)))
+
+
+

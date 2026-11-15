@@ -1,0 +1,31 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_IF_THEN_ELSE, 0 arguments|Wrong number of arguments when applying literal op EVAL_IF_THEN_ELSE, 0 arguments",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/eo-arg-ex.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 2, iteration 865196",
+ "id": "9e1539623066",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_IF_THEN_ELSE, 0 arguments",
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w2.eo:19.32: Expected KEYWORD or RPAREN, got `` (EOF)."
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_IF_THEN_ELSE, 0 arguments",
+   "Wrong number of arguments when applying literal op EVAL_REQUIRES, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w2.eo:19.32: Too few arguments when evaluating literal op EVAL_REQUIRES, 2 arguments [false false]"
+  ],
+  "exit_code": 1
+ }
+}

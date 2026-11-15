@@ -1,0 +1,33 @@
+{
+ "signature": "differ-stderr|Unknown category for parameterized operator myLet|Unknown category for parameterized operator myLet",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/let-binder-ex.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 1, iteration 184046",
+ "id": "bf776a04c4f0",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Unknown category for parameterized operator myLet",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w1.eo:14.32: Type checking failed:",
+   "Expression: (eo::define ((_v0 (eo::var \"y\" Bool))) (_ (_ myLet (_ (eo::tuple T @cons) (_ (_ (eo::tuple T) _v0) true))) _v0))",
+   "Message: No type rule declared for literal kind STRING; use declare-consts to declare its type before use"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Unknown category for parameterized operator myLet",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w1.eo:14.32: Type checking failed:",
+   "Expression: (_ myLet (eo::var \"y\" Bool))",
+   "Message: No type rule declared for literal kind STRING; use declare-consts to declare its type before use"
+  ],
+  "exit_code": 1
+ }
+}

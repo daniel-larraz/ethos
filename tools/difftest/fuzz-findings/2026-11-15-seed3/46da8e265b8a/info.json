@@ -1,0 +1,30 @@
+{
+ "signature": "candidate-crash|thread 'main' (0) panicked at crates/pathos-elab/src/expr_parser.rs:0:0:",
+ "category": "candidate-crash",
+ "count": 1,
+ "seed": "tests/quoted.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 2, iteration 4855041",
+ "id": "46da8e265b8a",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "terminate called after throwing an instance of 'std::out_of_range'",
+   "  what():  basic_string::erase: __pos (which is 18446744073709551615) > this->size() (which is 0)"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "thread 'main' (2686595) panicked at crates/pathos-elab/src/expr_parser.rs:688:23:",
+   "byte range starts at 1 but ends at 0",
+   "note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+  ],
+  "exit_code": 101
+ }
+}

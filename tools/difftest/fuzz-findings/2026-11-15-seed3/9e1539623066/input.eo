@@ -1,0 +1,19 @@
+(declare-const Int Type)
+
+(declare-const BitVec (-> Int Type))
+
+
+(define @bv_empty () (eo::ite ))
+
+
+
+(program zero_of_width ((n Int))
+  :signature ((eo::quote n)) (BitVec n)
+  (
+    
+    ((zero_of_width n) (eo::requires (eo::is_neg n) false
+                          ))
+  )
+)
+
+(define foo () (zero_of_width 7)

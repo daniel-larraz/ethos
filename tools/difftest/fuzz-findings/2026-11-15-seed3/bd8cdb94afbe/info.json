@@ -1,0 +1,33 @@
+{
+ "signature": "differ-stderr|No overload found when constructing application [BitVec]|No overload found when constructing application [BitVec]",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/bv-concat.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 3, iteration 1483761",
+ "id": "bd8cdb94afbe",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "No overload found when constructing application [BitVec]",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w3.eo:7.13: Type checking failed:",
+   "Expression: (-> (BitVec n) (-> (BitVec) (BitVec n)))",
+   "Message: Incorrect arity for BitVec, which expects 1 arguments but 0 were provided"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "No overload found when constructing application [BitVec]",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w3.eo:7.13: Type checking failed:",
+   "Expression: (eo::define ((_v0 (BitVec n))) (-> _v0 (-> (BitVec) _v0)))",
+   "Message: Incorrect arity for BitVec, which expects 1 arguments but 0 were provided"
+  ],
+  "exit_code": 1
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "signature": "candidate-out-of-memory|GNU MP: Cannot allocate memory (size=0)|memory allocation of 0 bytes failed",
+ "category": "candidate-out-of-memory",
+ "count": 1,
+ "seed": "tests/nground-nil-v3.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 3, iteration 423657",
+ "id": "d55e0111bf9f",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "GNU MP: Cannot allocate memory (size=4294967296)"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "memory allocation of 4294967296 bytes failed",
+   "note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace"
+  ],
+  "exit_code": 134
+ }
+}

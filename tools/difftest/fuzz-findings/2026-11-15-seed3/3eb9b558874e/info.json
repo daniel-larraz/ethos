@@ -1,0 +1,30 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_NTH, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_NTH, 0 arguments",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/datatypes-split-rule-param-uinst.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 3, iteration 260352",
+ "id": "3eb9b558874e",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_NTH, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w3.eo:48.38: A step of rule dt-inst failed to check.",
+   "Evaluation failed: (_ (= (_ (is nil) x)) (_ (= x) ($mk_dt_inst eo::List::nil x (eo::list_nth eo::List::cons -1))))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_NTH, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w3.eo:48.38: Too few arguments when evaluating literal op EVAL_LIST_NTH, 2 arguments [eo::List::cons -1]"
+  ],
+  "exit_code": 1
+ }
+}

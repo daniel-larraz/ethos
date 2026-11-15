@@ -1,0 +1,30 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 0 arguments",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/examples-nary.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [],
+ "iteration": "worker 0, iteration 143476",
+ "id": "6f008521b732",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w0.eo:47.66: A step of rule check_concat failed to check.",
+   "Evaluation failed: (eo::define ((_v0 (_ (_ cons c1) (_ (_ cons c3) nil)))) (eo::requires (eo::list_concat cons _v0) _v0 true))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_CONCAT, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w0.eo:47.66: Too few arguments when evaluating literal op EVAL_LIST_CONCAT, 2 arguments [cons (_ (_ cons c1) (_ (_ cons c3) nil))]"
+  ],
+  "exit_code": 1
+ }
+}

@@ -1,0 +1,34 @@
+{
+ "signature": "differ-stderr|No overload found when constructing application [x, (s x)]|No overload found when constructing application [x, (s x)]",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/datatypes-split-rule-param-uinst.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--require-proof-of-false"
+ ],
+ "iteration": "worker 2, iteration 3417818",
+ "id": "53f79b61d4c3",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "No overload found when constructing application [x, (s x)]",
+   "Wrong number of arguments when applying literal op EVAL_LIST_NTH, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w2.eo:52.38: A step of rule dt-inst failed to check.",
+   "Evaluation failed: (_ (= (_ (is nil) x)) (_ (= x) ($mk_dt_inst eo::List::nil x (eo::list_nth eo::List::cons -1))))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "No overload found when constructing application [x, (s x)]",
+   "Wrong number of arguments when applying literal op EVAL_LIST_NTH, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w2.eo:52.38: Too few arguments when evaluating literal op EVAL_LIST_NTH, 2 arguments [eo::List::cons -1]"
+  ],
+  "exit_code": 1
+ }
+}

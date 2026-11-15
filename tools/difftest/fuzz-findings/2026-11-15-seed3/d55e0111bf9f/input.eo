@@ -1,0 +1,26 @@
+(declare-const Int Type)
+(declare-consts <numeral> Int)
+
+(declare-const BitVec (-> Int Type))
+
+
+
+
+(declare-parameterized-const bvand ((m Int :implicit))
+    (->  (BitVec m) (BitVec m))
+    :right-assoc-nil (eo::not (eo::to_bin m 0))
+)
+
+
+
+(declare-parameterized-const is-tail-of ((T Type :implicit) ) (-> T))
+
+
+
+
+
+(declare-const c (BitVec 4294967295))
+
+
+
+(step @p1 (is-tail-of #b111 (bvand c)) :rule 

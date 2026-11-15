@@ -1,0 +1,32 @@
+{
+ "signature": "differ-stderr|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments|Wrong number of arguments when applying literal op EVAL_LIST_FIND, 0 arguments",
+ "category": "differ-stderr",
+ "count": 1,
+ "seed": "tests/datatypes-split-rule-param-uinst.eo",
+ "context": "tests",
+ "suffix": ".eo",
+ "options": [
+  "--no-normalize-hex"
+ ],
+ "iteration": "worker 3, iteration 266124",
+ "id": "9dd82f19efb5",
+ "reference": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_FIND, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w3.eo:47.39: A step of rule dt-inst failed to check.",
+   "Evaluation failed: (= (_ (= x) ($mk_dt_inst (_ (_ eo::List::cons head) eo::List::nil) x (eo::list_nth eo::List::cons (_ (_ eo::List::cons cons) (_ (_ eo::List::cons (as nil (Lst Int))) eo::List::nil)) -1))))"
+  ],
+  "exit_code": 134
+ },
+ "candidate": {
+  "outcome": "error",
+  "stdout": [],
+  "stderr": [
+   "Wrong number of arguments when applying literal op EVAL_LIST_FIND, 2 arguments",
+   "Error: /home/daniel/Projects/cvc5/ethos/rust/tools/difftest/work/fuzz-long-seed3/ctx/tests/fuzz-w3.eo:47.39: Too few arguments when evaluating literal op EVAL_LIST_FIND, 2 arguments [eo::List::cons (_ (_ eo::List::cons cons) (_ (_ eo::List::cons (as nil (Lst Int))) eo::List::nil))]"
+  ],
+  "exit_code": 1
+ }
+}

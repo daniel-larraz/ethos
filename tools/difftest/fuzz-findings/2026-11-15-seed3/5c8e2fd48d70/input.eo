@@ -1,0 +1,11 @@
+
+
+(declare-const or (-> Bool) :right-assoc-nil false)
+
+(declare-const a Bool)
+
+
+
+(define Q ((x Bool :list)) (eo::requires (or x)))
+
+(declare-parameterized-const = ((A Type :implicit)) (-> A  Bool(Q a))
