@@ -235,8 +235,12 @@ their `info.json` are shortened to `<ctx>/`; `SUMMARY.json` has the counts.
 `fuzz-findings/2026-11-14-seed1/` holds the first run against pathos: 888,900
 mutants in 10 minutes, 99.95% agreeing, 40 groups of differences and one
 Ethos crash.
-Four of the groups are accepted differences: `eo::` operators evaluated
-without an argument they read.
+Four of the groups were accepted differences: `eo::` operators evaluated
+without an argument they read, where Ethos read past the end of its
+argument vector and the candidate stopped with an error. cvc5/ethos#272
+(Ethos `c7d3db90`) fixed that: Ethos now checks the arity first, as the
+candidate does, so against that revision those findings agree and are no
+longer accepted (two of them now run out of time in both).
 
 ## The Eunoia compiler (eoc)
 
