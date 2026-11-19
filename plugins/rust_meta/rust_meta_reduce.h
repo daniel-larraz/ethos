@@ -44,7 +44,8 @@ class RustMetaReduce : public MetaReducePlugin
   class Emitter;
   bool isBuiltinMetaSymbol(const std::string& name) const override;
   void finalizeDecl(const Expr& e) override;
-  std::set<std::string> reachable() const;
+  std::set<std::string> reachable(
+      const std::set<std::string>& without = {}) const;
   void selectCaches(const std::set<std::string>& names);
   /** Whether a constructor is a user symbol, not an embedding or meta one. */
   static bool isUserConstructor(const std::string& name);
@@ -62,6 +63,35 @@ class RustMetaReduce : public MetaReducePlugin
   /** A runtime template with each `@ctor:NAME@` replaced by that. */
   std::string expandConstructors(std::string text) const;
   std::string emitProgram(const std::string& name, const Program& p);
+  /** The name logos's Lean has for a program or a constructor. */
+  static std::string leanName(const std::string& name);
+  /**
+   * The proof about a program's functions, for Lean (see `leanProofs`):
+   * the script of each case, or why there is none.
+   */
+  struct LeanProof
+  {
+    struct Case
+    {
+      std::string unfolds;
+      std::vector<std::string> lines;
+    };
+    std::string name;
+    size_t nargs = 0;
+    /** The arguments the body tests for the stuck term, in order. */
+    std::vector<size_t> stuck;
+    std::vector<Case> cases;
+    bool loop = false;
+    /** The number of its cache of results, or empty. */
+    std::string cache;
+    std::set<std::string> calls;
+    std::string why;
+  };
+  std::vector<LeanProof> d_leanProofs;
+  /** The programs that logos's Lean has a function for. */
+  std::set<std::string> d_leanHas;
+  /** The Lean file of the proofs, and the table of what has none. */
+  void leanProofs(size_t numParts) const;
   void output(const std::string& file, const std::string& text) const;
   static std::string ident(const std::string& name);
   static std::string quote(const std::string& text);

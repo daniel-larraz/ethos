@@ -165,7 +165,8 @@ bool RustMetaReduce::echo(const std::string& msg)
   return false;
 }
 
-std::set<std::string> RustMetaReduce::reachable() const
+std::set<std::string> RustMetaReduce::reachable(
+    const std::set<std::string>& without) const
 {
   const std::set<std::string> roots{"$eo_checker_is_refutation",
                                     "$eo_invoke_cmd_list",
@@ -184,7 +185,8 @@ std::set<std::string> RustMetaReduce::reachable() const
   std::vector<std::string> todo;
   for (const auto& p : d_programs)
   {
-    if (starts(p.first, "$eo_prog_") || roots.count(p.first))
+    if ((starts(p.first, "$eo_prog_") || roots.count(p.first))
+        && !without.count(p.first))
     {
       todo.push_back(p.first);
     }
@@ -592,6 +594,7 @@ class RustMetaReduce::Emitter
    */
   Emitter(Emitter& parent, std::ostream& out)
       : vars(parent.vars),
+        lean(parent.lean),
         m(parent.m),
         o(out),
         d_shared(parent.d_shared),
@@ -601,6 +604,134 @@ class RustMetaReduce::Emitter
   std::map<Expr, std::string> vars;
   /** Starts the body of another function: no variable is known. */
   void clear() { vars.clear(); }
+  /**
+   * The proof of what this emitter writes, as a script for Lean: a line
+   * for each line of Rust, in the tactics of the proofs' Tactic.lean
+   * (pathos, proofs/PathosProofs). `store` counts the stores so far (an
+   * operation that may add a term gives a new one), `facts` are the
+   * hypotheses about handles, which hold of the current store and are
+   * carried over to the next, `pure` those about terms, which no store is
+   * part of. Where something is written that the script has no line for
+   * yet, `why` says what, and no proof is written for the program.
+   */
+  struct Lean
+  {
+    std::vector<std::string> lines;
+    size_t store = 0;
+    std::vector<std::string> facts;
+    std::vector<std::string> pure;
+    std::string why;
+    /** The function of lean-meta's case file for the case being written. */
+    std::string caseDef;
+    /** The helper functions whose text the proof goes through. */
+    std::vector<std::string> unfolds;
+    /** The programs called. */
+    std::set<std::string> calls;
+    /** What the lines being written begin with: they are in a block. */
+    std::string indent;
+    /** A Rust variable that the Lean has under another name. */
+    std::map<std::string, std::string> alias;
+  };
+  Lean lean;
+  /** The Lean name of a Rust variable. */
+  std::string ln(const std::string& v) const
+  {
+    auto it = lean.alias.find(v);
+    return it == lean.alias.end() ? v : ln(it->second);
+  }
+  std::string leanStore() const
+  {
+    return lean.store == 0 ? "s" : "s" + std::to_string(lean.store);
+  }
+  std::string leanInv() const
+  {
+    return lean.store == 0 ? "hinv" : "hinv" + std::to_string(lean.store);
+  }
+  /** That the current store is no deeper in calls than the first. */
+  std::string leanRem() const
+  {
+    return lean.store == 0 ? "hrem" : "(hG.rem hrem)";
+  }
+  /**
+   * The constructors whose lemmas the proofs can name (pathos,
+   * proofs/PathosProofs/Runtime/Ctors.lean, written by hand): until the
+   * lemmas are generated with the constructors, a program that builds or
+   * takes apart another constructor has no proof.
+   */
+  static const std::set<std::string>& leanCtorLemmas()
+  {
+    static const std::set<std::string> have{
+        "= construct",
+        "not construct",
+        "and construct",
+        "$emb_s.nil construct",
+        "$eo_pf destruct",
+        "$emb_s.cons destruct",
+        "$emb_so.assume_push destruct"};
+    return have;
+  }
+  void leanLine(const std::string& line)
+  {
+    lean.lines.push_back(lean.indent + line);
+  }
+  void leanUnsupported(const std::string& what)
+  {
+    if (lean.why.empty())
+    {
+      lean.why = what;
+    }
+  }
+  static std::string words(const std::vector<std::string>& list)
+  {
+    std::string ret;
+    for (const std::string& f : list)
+    {
+      ret += " " + f;
+    }
+    return ret;
+  }
+  /** Where a pattern fails: the case ends, with these as its last words. */
+  std::string leanElse() const
+  {
+    return "else " + leanInv() + " hG in " + lean.caseDef;
+  }
+  /**
+   * An operation on the store whose specification is `spec` (a Lean term)
+   * and whose result is the variable `v`.
+   */
+  void leanStoreStep(const std::string& spec, const std::string& v)
+  {
+    std::string before = words(lean.facts);
+    lean.store++;
+    leanLine("store_step with " + spec + " as ⟨" + v + ", "
+                         + leanStore() + ", " + leanInv() + ", h_" + v
+                         + "⟩ growing hG carrying" + before);
+    lean.facts.push_back("h_" + v);
+  }
+  /** `if a != b { return Ok(None) }` on two handles. */
+  void leanSame(const std::string& ra, const std::string& rb)
+  {
+    std::string a = ln(ra), b = ln(rb);
+    leanLine("pat_same " + a + " " + b + " with h_" + a + " h_" + b
+                         + " using " + leanInv() + " " + leanElse());
+  }
+  /** What a part of this emitter's text (see the constructor) proved. */
+  void leanAdopt(const Emitter& part)
+  {
+    lean.lines.insert(lean.lines.end(),
+                      part.lean.lines.begin() + lean.lines.size(),
+                      part.lean.lines.end());
+    lean.store = part.lean.store;
+    lean.facts = part.lean.facts;
+    lean.pure = part.lean.pure;
+    lean.unfolds = part.lean.unfolds;
+    lean.calls = part.lean.calls;
+    lean.alias = part.lean.alias;
+    if (lean.why.empty())
+    {
+      lean.why = part.lean.why;
+    }
+  }
   /**
    * A call of the runtime or of a generated function that can fail, with
    * the error returned to the caller. Written as a match, not as `call?`:
@@ -751,6 +882,7 @@ class RustMetaReduce::Emitter
     std::string name = "more_" + std::to_string(d_shared.count++) + "_"
                        + d_shared.name;
     auto pa = parameters(plain(rest) + " " + result);
+    lean.unfolds.push_back(name);
     std::string tail = close(rest, result, ret);
     d_shared.helpers << "fn " << name << "(s: &mut Store" << pa.first << ") -> "
                      << ret << " {\n"
@@ -979,6 +1111,7 @@ class RustMetaReduce::Emitter
                           const Expr& no,
                           bool native)
   {
+    leanUnsupported("a conditional");
     std::string cv = expr(c);
     std::ostringstream ys, ns;
     Emitter ye(*this, ys);
@@ -1012,16 +1145,70 @@ class RustMetaReduce::Emitter
     {
       // A function of its own, as a conditional is.
       std::string a = expr(t[start]), b = expr(t[start + 1]);
+      // In the proof the requirement is a statement of its own, proved
+      // in place: its function gives a handle of logos's `__eo_requires`
+      // of the two terms and of what the third argument computes.
+      const std::string outerStore = leanStore(), outerInv = leanInv(),
+                        outerRem = leanRem(), outerIndent = lean.indent;
+      const std::vector<std::string> outerFacts = lean.facts,
+                                     outerPure = lean.pure;
+      const bool first = lean.store == 0;
+      size_t open = lean.lines.size();
+      lean.lines.push_back("");
+      lean.lines.push_back("");
+      lean.indent += "  ";
+      if (!first)
+      {
+        leanLine("have hrem := " + outerRem);
+      }
+      leanLine("have hG := Store.Grows.refl " + outerStore);
+      leanLine("req_same " + ln(a) + " " + ln(b) + " with h_" + ln(a) + " h_"
+               + ln(b) + " using " + outerInv + " hG");
+      leanLine("req_stuck h_" + ln(a) + " as hq_" + ln(a) + " using " + outerInv
+               + " hG");
       std::ostringstream rs;
       Emitter re(*this, rs);
       std::string r = re.expr(t[start + 2]);
       next = re.next;
+      leanAdopt(re);
+      // (the statement has holes for the three terms, which the proof
+      // fills: it is given as a term, whose holes may wait for its proof)
+      leanLine("req_done " + leanInv() + " hG with h_" + ln(r) + " using hq_"
+               + ln(a) + ")");
+      lean.indent = outerIndent;
+      lean.facts = outerFacts;
+      lean.pure = outerPure;
       std::string body = "if " + a + " != " + b
                          + " { return Ok(s.stuck()); }\nlet stuck = "
                          + attempt("s.is_stuck(" + a + ")")
                          + ";\nif stuck { return Ok(s.stuck()); }\n"
                          + close(rs.str(), "Ok(" + r + ")", "CheckResult<Term>");
-      return val(helper("requires", {}, body) + "?");
+      std::string call = helper("requires", {}, body);
+      // `name(s, a, b)` is `name s a b` in Lean, on the store of the call
+      const std::string fn = call.substr(0, call.find('('));
+      std::string applied = fn + " " + outerStore;
+      for (size_t i = call.find('(') + 2; i < call.size();)
+      {
+        size_t j = call.find_first_of(",)", i);
+        std::string arg = call.substr(i, j - i);
+        arg.erase(0, arg.find_first_not_of(' '));
+        if (!arg.empty())
+        {
+          applied += " " + ln(arg);
+        }
+        i = j + 1;
+      }
+      std::string v = fresh();
+      lean.lines[open] =
+          outerIndent + "have h_req_" + v + " := (show " + applied
+          + " ⦃ r s' => s'.Inv ∧ " + outerStore
+          + ".Grows s' ∧ match r with | core.result.Result.Ok t => "
+            "Represents.rep s' t (Eo.__eo_requires _ _ _) | "
+            "core.result.Result.Err _ => True ⦄div from by";
+      lean.lines[open + 1] = outerIndent + "  unfold " + fn;
+      o << "let " << v << " = " << attempt(call) << ";\n" << CUT;
+      leanStoreStep("h_req_" + v, v);
+      return v;
     }
     std::string as = args(t, start);
     if (k == Kind::EVAL_TYPE_OF || k == Kind::EVAL_NIL
@@ -1047,7 +1234,21 @@ class RustMetaReduce::Emitter
     Kind k = t.getKind();
     if (isLiteral(k))
     {
-      return val("s.literal(" + literal(t) + ")?");
+      std::string st = leanStore(), inv = leanInv();
+      std::string v = val("s.literal(" + literal(t) + ")?");
+      if (k == Kind::BOOLEAN)
+      {
+        leanStoreStep(std::string("Store.literal_boolean_spec ") + st
+                          + (t.getValue()->asLiteral()->d_bool ? " true "
+                                                               : " false ")
+                          + inv + " h64",
+                      v);
+      }
+      else
+      {
+        leanUnsupported("a literal that is not a Boolean");
+      }
+      return v;
     }
     if (t.getNumChildren() == 0)
     {
@@ -1057,12 +1258,24 @@ class RustMetaReduce::Emitter
       }
       if (k == Kind::PROGRAM_CONST)
       {
+        leanUnsupported("a program constant");
         return val(ident(getName(t)) + "(s)?");
       }
       std::string n = k == Kind::TYPE        ? "$emb_Type"
                       : k == Kind::BOOL_TYPE ? "$emb_Bool"
                                              : getName(t);
-      return val("s.construct(" + ctor(n) + ", &[])?");
+      std::string st = leanStore(), inv = leanInv();
+      std::string v = val("s.construct(" + ctor(n) + ", &[])?");
+      if (!leanCtorLemmas().count(n + " construct"))
+      {
+        leanUnsupported("the constructor " + n + ", which has no lemma yet");
+      }
+      leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
+      leanStoreStep("CtorSpec." + ident(n) + ".construct " + st + " e_" + v
+                        + " (by rw [he_" + v + "]; exact empty_args) " + inv
+                        + " h64",
+                    v);
+      return v;
     }
     if (k == Kind::APPLY_OPAQUE)
     {
@@ -1074,9 +1287,20 @@ class RustMetaReduce::Emitter
         {
           return conditional(t[2], t[3], t[4], true);
         }
+        if (t.getNumChildren() == 2 && (name == "true" || name == "false"))
+        {
+          std::string st = leanStore(), inv = leanInv();
+          std::string v = val(native(name, 0, ""));
+          leanStoreStep("Store.native_bool_spec " + st + " " + name + " " + inv
+                            + " h64",
+                        v);
+          return v;
+        }
+        leanUnsupported("the native operation " + name);
         std::string as = args(t, 2);
         return val(native(name, t.getNumChildren() - 2, as));
       }
+      leanUnsupported("a constructor with arguments");
       std::string as = args(t, 1);
       return val("s.construct(" + ctor(n) + ", &[" + as + "])?");
     }
@@ -1086,17 +1310,43 @@ class RustMetaReduce::Emitter
       Kind b = builtin(n);
       if (b != Kind::NONE)
       {
+        if (b != Kind::EVAL_REQUIRES)
+        {
+          leanUnsupported("the builtin " + n);
+        }
         return op(b, t, 1);
       }
-      std::string as = args(t, 1);
-      return val(ident(n) + "(s" + (as.empty() ? "" : ", " + as) + ")?");
+      std::vector<std::string> vs;
+      std::string as;
+      for (size_t i = 1; i < t.getNumChildren(); ++i)
+      {
+        vs.push_back(expr(t[i]));
+        as += (i == 1 ? "" : ", ") + vs.back();
+      }
+      std::string st = leanStore(), inv = leanInv(), rem = leanRem();
+      std::string v = val(ident(n) + "(s" + (as.empty() ? "" : ", " + as) + ")?");
+      std::string spec = "ih." + ident(n) + " " + st, holes, reps;
+      for (const std::string& x : vs)
+      {
+        spec += " " + ln(x);
+        holes += " _";
+        reps += " h_" + ln(x);
+      }
+      leanStoreStep(spec + holes + " " + inv + " h64 " + rem + reps, v);
+      lean.calls.insert(n);
+      return v;
     }
     if (isLiteralOp(k))
     {
+      if (k != Kind::EVAL_REQUIRES)
+      {
+        leanUnsupported("a builtin operator");
+      }
       return op(k, t, 0);
     }
     if (k == Kind::FUNCTION_TYPE)
     {
+      leanUnsupported("a function type");
       size_t n = t.getNumChildren();
       std::string tail = expr(t[n - 1]);
       for (size_t i = n - 1; i > 0; --i)
@@ -1111,10 +1361,17 @@ class RustMetaReduce::Emitter
     if (k == Kind::APPLY && t.getNumChildren() == 2)
     {
       std::string f = expr(t[0]), a = expr(t[1]);
-      return val("s.apply(" + f + ", " + a + ")?");
+      std::string st = leanStore(), inv = leanInv();
+      std::string v = val("s.apply(" + f + ", " + a + ")?");
+      leanStoreStep("Store.apply_rep " + st + " " + ln(f) + " " + ln(a)
+                        + " _ _ " + inv + " h64 h_" + ln(f) + " h_" + ln(a)
+                        + " (by ns_tac) (by ns_tac)",
+                    v);
+      return v;
     }
     if (k == Kind::VARIABLE)
     {
+      leanUnsupported("a variable term");
       std::string as = args(t, 0);
       return val(named("$emb_Var", as));
     }
@@ -1130,6 +1387,7 @@ class RustMetaReduce::Emitter
       if (it != vars.end())
       {
         o << "if " << value << " != " << it->second << fail << CUT;
+        leanSame(value, it->second);
       }
       else
       {
@@ -1139,6 +1397,7 @@ class RustMetaReduce::Emitter
     }
     if (k == Kind::FUNCTION_TYPE && t.getNumChildren() == 2)
     {
+      leanUnsupported("a function type in a pattern");
       std::string outer = part("s.unapply(" + value + ")?");
       std::string f = fresh(), r = fresh();
       o << "let Some((" << f << ", " << r << ")) = " << outer << " else" << fail
@@ -1163,6 +1422,14 @@ class RustMetaReduce::Emitter
       o << "let Some((" << f << ", " << a << ")) = " << parts << " else" << fail
         << ";\n"
         << CUT;
+      leanLine("pat_unapply h_" + ln(value) + " as ⟨" + f + ", "
+                           + a + ", x_" + f + ", x_" + a + ", h_" + f + ", h_"
+                           + a + ", hn_" + f + ", hn_" + a + "⟩ using "
+                           + leanInv() + " " + leanElse());
+      lean.facts.push_back("h_" + f);
+      lean.facts.push_back("h_" + a);
+      lean.pure.push_back("hn_" + f);
+      lean.pure.push_back("hn_" + a);
       pattern(t[0], f);
       pattern(t[1], a);
       return;
@@ -1172,14 +1439,17 @@ class RustMetaReduce::Emitter
       size_t start = k == Kind::VARIABLE ? 0 : 1;
       std::string n = k == Kind::VARIABLE ? "$emb_Var" : getName(t[0]);
       std::string found;
+      bool data = false;
       if (starts(n, "$native_apply_"))
       {
+        leanUnsupported("a native pattern");
         found = part(nativePattern(getName(t[1]), value));
         start = 2;
       }
       else
       {
         found = part("s.destruct(" + ctor(n) + ", " + value + ")?");
+        data = true;
       }
       // The fields are taken out at once, each into a variable, so that
       // every variable of the generated code is a term.
@@ -1191,6 +1461,22 @@ class RustMetaReduce::Emitter
         o << "let " << fields.back() << " = fields[" << (i - start) << "];\n";
       }
       o << CUT;
+      if (data && !leanCtorLemmas().count(n + " destruct"))
+      {
+        leanUnsupported("the constructor " + n
+                        + " in a pattern, which has no lemma yet");
+      }
+      if (data)
+      {
+        std::string line = "pat_destruct CtorSpec." + ident(n) + ".destruct h_"
+                           + ln(value) + " as";
+        for (const std::string& f : fields)
+        {
+          line += " ⟨" + f + ", x_" + f + ", h_" + f + "⟩";
+          lean.facts.push_back("h_" + f);
+        }
+        leanLine(line + " " + leanElse());
+      }
       for (size_t i = start; i < t.getNumChildren(); ++i)
       {
         pattern(t[i], fields[i - start]);
@@ -1201,6 +1487,7 @@ class RustMetaReduce::Emitter
     {
       std::string expected = expr(t);
       o << "if " << value << " != " << expected << fail << CUT;
+      leanSame(value, expected);
       return;
     }
     EO_FATAL() << "rust-meta: unsupported pattern " << t;
@@ -1359,6 +1646,10 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
       return out.str();
     }
   }
+  d_leanProofs.emplace_back();
+  LeanProof& proof = d_leanProofs.back();
+  proof.name = name;
+  proof.nargs = nargs;
   out << "// EO program " << quote(name) << "\npub fn " << id << "(s: &mut Store"
       << params << ") -> CheckResult<Term> {\n"
       << attempt("s.enter()") << ";\n";
@@ -1406,6 +1697,7 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     std::string v = e.expr(p.body);
     out << e.close(body.str(), "Ok(" + v + ")", "CheckResult<Term>") << "}\n"
         << helpers.str();
+    proof.why = "a constant, not a program with cases";
     return out.str();
   }
   // What a case gives: a term, or, for a program whose tail calls are a
@@ -1431,6 +1723,7 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
       {
         if (kinds[i] == MetaKind::EUNOIA)
         {
+          proof.stuck.push_back(i);
           tries << "let stuck" << i << " = "
                 << attempt("s.is_stuck(a" + std::to_string(i) + ")")
                 << ";\nif stuck" << i << " { return Ok(" << stuck << "); }\n";
@@ -1451,6 +1744,10 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
   for (size_t c = 0; c < ncases; ++c)
   {
     level.push_back("case_" + std::to_string(c) + "_" + id);
+  }
+  if (level.size() > groupSize)
+  {
+    proof.why = "more than four cases";
   }
   for (size_t depth = 0; level.size() > groupSize; ++depth)
   {
@@ -1516,27 +1813,77 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
         << ret << " {\n";
     std::ostringstream cs;
     Emitter e(*this, cs, shared);
+    const std::string caseDef = "EoCases." + leanName(name) + ".case_"
+                                + std::to_string(c);
+    e.lean.caseDef = caseDef;
+    for (size_t j = 0; j < nargs; ++j)
+    {
+      e.lean.facts.push_back("h_a" + std::to_string(j));
+    }
+    for (size_t j : proof.stuck)
+    {
+      e.lean.pure.push_back("hn_a" + std::to_string(j));
+    }
     for (size_t j = 0; j < nargs; ++j)
     {
       e.pattern(pat[j + 1], "a" + std::to_string(j));
     }
-    std::string value;
+    std::string value, last;
     if (loop && tailCall(body))
     {
       // Every argument is evaluated before the next round has any.
       value = "Next::Again([";
+      std::string reps;
       for (size_t j = 1; j <= nargs; ++j)
       {
-        value += (j == 1 ? "" : ", ") + e.expr(body[j]);
+        std::string v = e.expr(body[j]);
+        value += (j == 1 ? "" : ", ") + v;
+        reps += " h_" + e.ln(v);
       }
       value += "])";
+      last = "case_again " + e.leanInv() + " hG with" + reps;
     }
     else
     {
       std::string v = e.expr(body);
       value = loop ? "Next::Done(" + v + ")" : v;
+      last = "case_done " + e.leanInv() + " hG with h_" + e.ln(v);
     }
     out << e.close(cs.str(), "Ok(Some(" + value + "))", ret) << "}\n";
+    // The proof of the case.
+    LeanProof::Case pc;
+    pc.unfolds = Emitter::words(e.lean.unfolds);
+    pc.lines = e.lean.lines;
+    pc.lines.push_back(last + " in " + caseDef + " using"
+                       + Emitter::words(e.lean.pure));
+    proof.cases.push_back(pc);
+    proof.calls.insert(e.lean.calls.begin(), e.lean.calls.end());
+    if (proof.why.empty() && !e.lean.why.empty())
+    {
+      proof.why = "case " + std::to_string(c) + " has " + e.lean.why;
+    }
+  }
+  proof.loop = loop;
+  proof.cache = cache == CacheKind::NONE
+                    ? ""
+                    : cache == CacheKind::PROGRAM
+                          ? std::to_string(d_programIds.at(name))
+                          : "type";
+  if (proof.why.empty() && cache != CacheKind::NONE
+      && cache != CacheKind::PROGRAM)
+  {
+    proof.why = "the cache of types";
+  }
+  if (proof.why.empty() && cache == CacheKind::PROGRAM)
+  {
+    // The table of what the cache holds is written for terms so far.
+    for (size_t i = 0; i < ty.getNumChildren(); ++i)
+    {
+      if (getTypeMetaKindFor(ty[i], MetaKind::EUNOIA, true) != MetaKind::EUNOIA)
+      {
+        proof.why = "a cache of results over values that are not terms";
+      }
+    }
   }
   // Helpers are module items; emit them after the functions that call them.
   out << helpers.str();
@@ -1552,6 +1899,465 @@ void RustMetaReduce::output(const std::string& file,
   {
     EO_FATAL() << "rust-meta: cannot write " << path;
   }
+}
+
+std::string RustMetaReduce::leanName(const std::string& name)
+{
+  std::string lean = replace_all(name, "-", "_");
+  if (lean == "end" || lean == "variable")
+  {
+    return "__eo_" + lean;
+  }
+  for (const auto& replacement : std::vector<Replacement>{{"++", "concat"},
+                                                          {"+", "plus"},
+                                                          {"-", "neg"},
+                                                          {"*", "mult"},
+                                                          {"=>", "imp"},
+                                                          {"<=", "leq"},
+                                                          {"<", "lt"},
+                                                          {">=", "geq"},
+                                                          {">", "gt"},
+                                                          {"=", "eq"},
+                                                          {"/", "qdiv"},
+                                                          {"^", "exp"},
+                                                          {".", "_"},
+                                                          {"@", "_at_"},
+                                                          {"$", "__"}})
+  {
+    lean = replace_all(lean, replacement.first, replacement.second);
+  }
+  return lean;
+}
+
+static std::string list_of(size_t n)
+{
+  std::string ret;
+  for (size_t i = 0; i < n; ++i)
+  {
+    ret += (i == 0 ? "a" : ", a") + std::to_string(i);
+  }
+  return ret;
+}
+
+void RustMetaReduce::leanProofs(size_t numParts) const
+{
+  // A program has a proof if each of its cases has a script and each
+  // program it calls has a proof.
+  std::map<std::string, std::string> why;
+  for (const LeanProof& p : d_leanProofs)
+  {
+    why[p.name] = d_leanHas.count(p.name)
+                      ? p.why
+                      : "logos's Lean has no function for it: only the "
+                        "runtime's datatype operators reach it";
+  }
+  for (bool changed = true; changed;)
+  {
+    changed = false;
+    for (const LeanProof& p : d_leanProofs)
+    {
+      if (!why[p.name].empty())
+      {
+        continue;
+      }
+      for (const std::string& c : p.calls)
+      {
+        auto it = why.find(c);
+        if (it == why.end() || !it->second.empty())
+        {
+          why[p.name] = "it calls " + c + ", which has no proof";
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  std::ostringstream o, table;
+  table << "source\tproof\twhy\n";
+  o << "module\npublic import $CHECKER$\npublic import $CALC$.Logos\n"
+       "import all $CALC$.Logos\npublic import $CASES$\nimport all $CASES$\n"
+       "public import PathosProofs.Generated\n\n"
+       "/-!\n# The proofs about the generated functions\n\n"
+       "Written by Ethos's rust-meta with the functions: for each program, "
+       "that its\nRust computes what logos's function of the same name does. "
+       "Do not edit.\n-/\n\n"
+       "set_option linter.unusedVariables false\n"
+       "set_option maxRecDepth 8000\n\n"
+       "@[expose] public section\n\nnamespace pathos_compiled_checker\n\n"
+       "open Aeneas Aeneas.Std Result\nopen generated";
+  for (size_t k = 0; k < numParts; ++k)
+  {
+    o << " generated.part" << k;
+  }
+  o << "\n\n";
+  const std::string ok = "core.result.Result.Ok", err = "core.result.Result.Err";
+  struct Names
+  {
+    std::string id, lean, handles, terms, binders, reps, xs, as, valid, valids;
+  };
+  auto names = [&](const LeanProof& p) {
+    Names n;
+    n.id = ident(p.name);
+    n.lean = "Eo." + leanName(p.name);
+    for (size_t i = 0; i < p.nargs; ++i)
+    {
+      std::string a = "a" + std::to_string(i);
+      n.as += " " + a;
+      n.xs += " x_" + a;
+      n.terms += " (x_" + a + " : _)";
+      n.reps += " h_" + a;
+      n.binders += " (h_" + a + " : Represents.rep s " + a + " x_" + a + ")";
+      n.valid += " (hw_" + a + " : Valid.valid x_" + a + ")";
+      n.valids += " (by valid_tac hinv h_" + a + ")";
+    }
+    n.handles = p.nargs == 0 ? "" : " (" + n.as.substr(1) + " : Term)";
+    return n;
+  };
+  std::vector<const LeanProof*> proved;
+  for (const LeanProof& p : d_leanProofs)
+  {
+    table << p.name << '\t' << (why[p.name].empty() ? "generated" : "none")
+          << '\t' << why[p.name] << '\n';
+    if (why[p.name].empty())
+    {
+      proved.push_back(&p);
+    }
+  }
+  // What is proved of each program, and all of it together: a program's
+  // proof uses what is proved of the programs it calls, itself among
+  // them, at a smaller number of calls that may still be entered.
+  for (const LeanProof* p : proved)
+  {
+    Names n = names(*p);
+    o << "/-- What is proved of `" << p->name << "`. -/\ndef " << n.id
+      << ".Spec (n : Nat) : Prop :=\n  ∀ (s : Store)" << n.handles << n.terms
+      << ", s.Inv → Platform64 → s.remaining ≤ n →\n   ";
+    for (size_t i = 0; i < p->nargs; ++i)
+    {
+      o << " Represents.rep s a" << i << " x_a" << i << " →";
+    }
+    o << "\n    " << n.id << " s" << n.as
+      << " ⦃ r s' => s'.Inv ∧ s.Grows s' ∧\n      match r with\n      | " << ok
+      << " t => Represents.rep s' t (" << n.lean << n.xs << ")\n      | " << err
+      << " _ => True ⦄div\n\n";
+  }
+  o << "/-- What is proved of the programs, for stores that can enter `n` "
+       "more calls. -/\nstructure Specs (n : Nat) : Prop where\n";
+  for (const LeanProof* p : proved)
+  {
+    o << "  " << ident(p->name) << " : " << ident(p->name) << ".Spec n\n";
+  }
+  o << "\n";
+  for (const LeanProof* p : proved)
+  {
+    Names n = names(*p);
+    const std::string head = " (n : Nat) (ih : Specs n) (s : Store)" + n.handles
+                             + n.terms
+                             + "\n    (hinv : s.Inv) (h64 : Platform64) (hrem : "
+                               "s.remaining ≤ n)"
+                             + n.binders;
+    std::string stuck, facts, notStuck;
+    for (size_t i : p->stuck)
+    {
+      stuck += " (hn_a" + std::to_string(i) + " : x_a" + std::to_string(i)
+               + " ≠ Eo.Term.Stuck)";
+      facts += " hn_a" + std::to_string(i);
+    }
+    notStuck = facts;
+    const std::string post = " ⦃ r s' => s'.Inv ∧ s.Grows s' ∧\n      match r with\n";
+    // the arguments of the next round of a loop
+    std::string next, list;
+    for (size_t i = 0; i < p->nargs; ++i)
+    {
+      std::string k = std::to_string(i);
+      next += " (u" + k + " : Term) (y" + k + " : _)";
+      list += (i == 0 ? "u" : ", u") + k;
+    }
+    std::string again = "∃" + next + ", arr.val = [" + list + "]";
+    std::string ys;
+    for (size_t i = 0; i < p->nargs; ++i)
+    {
+      std::string k = std::to_string(i);
+      again += " ∧ Represents.rep s' u" + k + " y" + k;
+      ys += " y" + k;
+    }
+    std::string defs, cds;
+    for (size_t c = 0; c < p->cases.size(); ++c)
+    {
+      const std::string cd = "EoCases." + leanName(p->name) + ".case_"
+                             + std::to_string(c);
+      const std::string fn = "case_" + std::to_string(c) + "_" + n.id;
+      defs += " " + cd;
+      cds += (c == 0 ? "" : ", ") + cd + n.xs;
+      o << "theorem " << fn << "_spec" << head << stuck << " :\n    " << fn
+        << " s" << n.as << post;
+      if (p->loop)
+      {
+        o << "      | " << ok << " (some (Next.Done t)) =>\n        ∃ res, " << cd
+          << n.xs << " = some res ∧ Represents.rep s' t res\n      | " << ok
+          << " (some (Next.Again arr)) =>\n        " << again << " ∧\n          "
+          << cd << n.xs << " = some (" << n.lean << ys << ")\n";
+      }
+      else
+      {
+        o << "      | " << ok << " (some t) =>\n        ∃ res, " << cd << n.xs
+          << " = some res ∧ Represents.rep s' t res\n";
+      }
+      o << "      | " << ok << " none => " << cd << n.xs << " = none\n      | "
+        << err << " _ => True ⦄div := by\n  unfold " << fn
+        << p->cases[c].unfolds << "\n  have hG := Store.Grows.refl s\n";
+      for (const std::string& l : p->cases[c].lines)
+      {
+        o << "  " << l << "\n";
+      }
+      o << "\n";
+    }
+    // what the body computes, in the functions of the cases
+    o << "/-- logos's `" << leanName(p->name)
+      << "` is what the generated body does: the tests for the stuck term,\n"
+         "then the first case that answers. -/\ntheorem "
+      << n.id << ".rust_eq" << n.terms << n.valid << " :\n    " << n.lean << n.xs
+      << " =\n      (";
+    for (size_t i : p->stuck)
+    {
+      o << "if x_a" << i << " = Eo.Term.Stuck then HasStuck.stuck else ";
+    }
+    o << "firstSome [" << cds << "] HasStuck.stuck) := by\n  conv => lhs; unfold "
+      << n.lean << "\n  unfold" << defs
+      << "\n  logos_eq\n\n";
+    // the body: for a loop, a round of it
+    const std::string round = (p->loop ? "step_" : "body_") + n.id;
+    o << "theorem " << round << "_spec" << head << " :\n    " << round << " s"
+      << n.as << post;
+    if (p->loop)
+    {
+      o << "      | " << ok << " (Next.Done t) => Represents.rep s' t (" << n.lean
+        << n.xs << ")\n      | " << ok << " (Next.Again arr) =>\n        "
+        << again << " ∧\n          " << n.lean << n.xs << " = " << n.lean << ys
+        << "\n";
+    }
+    else
+    {
+      o << "      | " << ok << " t => Represents.rep s' t (" << n.lean << n.xs
+        << ")\n";
+    }
+    o << "      | " << err << " _ => True ⦄div := by\n  rw [" << n.id
+      << ".rust_eq" << n.xs << n.valids << "]\n  unfold " << round
+      << "\n  have hG := Store.Grows.refl s\n";
+    size_t store = 0;
+    auto st = [&]() { return store == 0 ? "" : std::to_string(store); };
+    if (p->loop)
+    {
+      store++;
+      o << "  tick_step as ⟨s1, hinv1⟩ growing hG carrying" << n.reps << "\n";
+    }
+    for (size_t i : p->stuck)
+    {
+      o << "  stuck_check h_a" << i << " : x_a" << i << " as hn_a" << i
+        << " else hinv" << st() << " hG\n";
+    }
+    for (size_t c = 0; c < p->cases.size(); ++c)
+    {
+      o << "  " << (p->loop ? "round_step" : "case_step") << " with case_" << c
+        << "_" << n.id << "_spec n ih s" << st() << n.as << n.xs << " hinv"
+        << st() << " h64 " << (store == 0 ? "hrem" : "(hG.rem hrem)") << n.reps
+        << notStuck << "\n    as ⟨s" << store + 1 << ", hinv" << store + 1 << ", hc"
+        << c << "⟩ growing hG carrying" << n.reps << " using" << facts << "\n";
+      facts += " hc" + std::to_string(c);
+      store++;
+    }
+    o << "  " << (p->loop ? "round_stuck" : "body_stuck") << " hinv" << st()
+      << " hG using" << facts << " in" << defs << "\n\n";
+    const std::string result = "      | " + ok + " t => Represents.rep s' t ("
+                               + n.lean + n.xs + ")\n      | " + err
+                               + " _ => True ⦄div";
+    if (p->loop)
+    {
+      // the loop, by induction over it
+      std::string order = n.as + " s" + n.xs;
+      o << "theorem body_" << n.id << "_spec" << head << " :\n    body_" << n.id
+        << " s" << n.as << post << result << " := by\n  unfold body_" << n.id
+        << "\n";
+      std::ostringstream motive;
+      motive << "∀" << n.handles << " (s : Store)" << n.terms
+             << ", s.Inv → s.remaining ≤ n →\n     ";
+      for (size_t i = 0; i < p->nargs; ++i)
+      {
+        motive << " Represents.rep s a" << i << " x_a" << i << " →";
+      }
+      motive << "\n      f" << n.as << " s" << post << result;
+      std::string of = motive.str();
+      size_t at = of.find("\n      f ");
+      std::string whole = of;
+      whole.replace(at, 8, "\n      body_" + n.id + "_loop");
+      o << "  refine (?_ : " << whole << ")" << order << " hinv hrem" << n.reps
+        << "\n  apply body_" << n.id
+        << "_loop.fixpoint_induct\n    (motive := fun f => " << of
+        << ")\n  · prove_adm\n  · intro loop ihl" << order << " hinv hrem"
+        << n.reps << "\n    simp only\n    step with step_" << n.id
+        << "_spec n ih s" << n.as << n.xs << " hinv h64 hrem" << n.reps
+        << " as ⟨r, s1, hinv1, hg1, hr⟩\n    cases r with\n"
+           "    | Err e => simp only [WP.dspec_ok, WP.uncurry'_pair]; "
+           "exact ⟨hinv1, hg1, trivial⟩\n    | Ok nx =>\n      cases nx with\n"
+           "      | Done value =>\n        simp only [WP.dspec_ok, "
+           "WP.uncurry'_pair]\n        exact ⟨hinv1, hg1, hr⟩\n"
+           "      | Again next =>\n        obtain ⟨";
+      std::string us, bs, ys2, hreps;
+      for (size_t i = 0; i < p->nargs; ++i)
+      {
+        std::string k = std::to_string(i);
+        o << "u" << k << ", y" << k << ", ";
+        bs += " b" + k;
+        ys2 += " y" + k;
+        hreps += ", hrep" + k;
+      }
+      o << "hnext" << hreps << ", heq⟩ := hr\n        simp only\n"
+           "        have hlen : next.length = " << p->nargs
+        << " := by simp [Array.length, hnext]\n";
+      for (size_t i = 0; i < p->nargs; ++i)
+      {
+        std::string k = std::to_string(i);
+        o << "        step as ⟨b" << k << ", hb" << k << "⟩\n        obtain rfl : b"
+          << k << " = u" << k << " := by simp [hb" << k << ", hnext]\n";
+      }
+      std::string hs2 = hreps;
+      for (char& ch : hs2)
+      {
+        if (ch == ',')
+        {
+          ch = ' ';
+        }
+      }
+      o << "        apply WP.dspec_mono (ihl" << bs << " s1" << ys2
+        << " hinv1 (hg1.rem hrem)" << hs2
+        << ")\n        loop_close hg1 heq\n\n";
+    }
+    // the program: the body between `enter` and `leave`
+    std::string congr, xlist, replist = "List.Forall₂.nil", mono = replist;
+    for (size_t i = 0; i < p->nargs; ++i)
+    {
+      congr += " (by congr_one h_a" + std::to_string(i) + " hn)";
+      xlist += (i == 0 ? "x_a" : ", x_a") + std::to_string(i);
+    }
+    for (size_t i = p->nargs; i > 0; --i)
+    {
+      std::string h = "h_a" + std::to_string(i - 1);
+      replist = "(List.Forall₂.cons (Store.Rep.congr " + h + " hn) " + replist
+                + ")";
+      mono = "(List.Forall₂.cons (Rep.mono hpre " + h + ") " + mono + ")";
+    }
+    const std::string fpost = "(fun s' t => Represents.rep s' t (" + n.lean
+                              + n.xs + "))";
+    o << "theorem " << n.id << "_spec (n : Nat) (ih : ∀ m < n, Specs m) : "
+      << n.id << ".Spec n := by\n  intro s" << n.as << n.xs << " hinv h64 hrem"
+      << n.reps << "\n  unfold " << n.id << "\n  apply WP.dspec_mono (Store."
+      << (p->cache.empty() ? "framed s hinv hrem"
+                           : "framed_cached s hinv hrem " + p->cache + "#u32 _ ["
+                                 + list_of(p->nargs) + "] rfl")
+      << "\n    (fun s1 => body_" << n.id << " s1" << n.as << ") " << fpost
+      << "\n    (by intro _ _ _ hn h; congr_one h hn)\n";
+    if (!p->cache.empty())
+    {
+      // what the cache says of the program is what is proved of it
+      o << "    (by\n      intro s1 res hn hsem\n      obtain ⟨xs, hl, hr⟩ := "
+           "ProgramSem.of_" << p->cache << " hsem\n      cases RepList.functional hl "
+        << replist << "\n      exact hr)\n    (by\n      intro s1 res hpre h\n"
+           "      exact ProgramSem.to_" << p->cache << " ⟨[" << xlist << "], " << mono
+        << ", h⟩)\n";
+    }
+    o << "    (fun s1 m hinv1 hn hm hrem1 => by\n      spec_exact body_" << n.id
+      << "_spec m (ih m hm) s1" << n.as << n.xs << " hinv1 h64 hrem1" << congr
+      << "))\n  rintro ⟨r, s'⟩ h\n  cases r <;> simpa [WP.uncurry'_pair] using h\n\n";
+  }
+  o << "/-- **Every program with a generated proof computes what logos's "
+       "function does.** -/\ntheorem specs (n : Nat) : Specs n := by\n"
+       "  induction n using Nat.strong_induction_on with\n  | _ n ih =>\n"
+       "    exact ⟨";
+  for (size_t i = 0; i < proved.size(); ++i)
+  {
+    o << (i == 0 ? "" : ",\n      ") << ident(proved[i]->name) << "_spec n ih";
+  }
+  o << "⟩\n\nend pathos_compiled_checker\n";
+  output("proofs.lean", o.str());
+  output("proofs.tsv", table.str());
+  // What an entry of the cache of results says, for each program that has
+  // the cache: the store's invariant is stated with it.
+  std::ostringstream c, conj, mono, lemmas;
+  c << "module\npublic import $CHECKER$\npublic import $CALC$.Logos\n"
+       "public import PathosProofs.Store.Rep\n\n"
+       "/-!\n# What the cache of program results holds\n\n"
+       "Written by Ethos's rust-meta with the functions: for each program "
+       "whose results\nare cached, that an entry's result is the program's on "
+       "the entry's arguments.\nDo not edit.\n-/\n\n"
+       "@[expose] public section\n\nnamespace pathos_compiled_checker\n\n"
+       "open Aeneas Aeneas.Std Result\n\n";
+  std::vector<std::pair<size_t, const LeanProof*>> cached;
+  for (const LeanProof& p : d_leanProofs)
+  {
+    if (!p.cache.empty() && p.cache != "type" && why[p.name].empty())
+    {
+      cached.emplace_back(std::stoul(p.cache), &p);
+    }
+  }
+  std::sort(cached.begin(), cached.end());
+  std::string path;
+  for (const auto& e : cached)
+  {
+    const LeanProof& p = *e.second;
+    std::string xs, pat;
+    for (size_t i = 0; i < p.nargs; ++i)
+    {
+      xs += " x" + std::to_string(i);
+      pat += (i == 0 ? "x" : ", x") + std::to_string(i);
+    }
+    c << "/-- `" << p.name << "`. -/\ndef ProgramSem.p" << p.cache
+      << " (nodes : List TermData) (args : List Term) (res : Term) : Prop :=\n"
+         "  ∃ xs : List Eo.Term, RepList nodes args xs ∧\n    match xs with\n"
+         "    | ["
+      << pat << "] => Rep nodes res.val (Eo." << leanName(p.name) << xs
+      << ")\n    | _ => False\n\ntheorem ProgramSem.p" << p.cache
+      << ".mono {nodes nodes' : List TermData} {args : List Term} {res : Term}\n"
+         "    (hpre : nodes <+: nodes') (h : ProgramSem.p"
+      << p.cache << " nodes args res) :\n    ProgramSem.p" << p.cache
+      << " nodes' args res := by\n  obtain ⟨xs, hl, hr⟩ := h\n"
+         "  refine ⟨xs, RepList.mono hpre hl, ?_⟩\n"
+         "  split at hr\n  · exact Rep.mono hpre hr\n  · exact hr.elim\n\n";
+    conj << "  (pid = " << p.cache << " → ProgramSem.p" << p.cache
+         << " nodes args res) ∧\n";
+    mono << "fun e => ProgramSem.p" << p.cache << ".mono hpre (h" << path
+         << ".1 e), ";
+    lemmas << "theorem ProgramSem.of_" << p.cache
+           << " {nodes : List TermData} {args : List Term} {res : Term}\n"
+              "    (h : ProgramSem nodes "
+           << p.cache << " args res) : ProgramSem.p" << p.cache
+           << " nodes args res :=\n  h" << path << ".1 rfl\n\n"
+              "theorem ProgramSem.to_"
+           << p.cache
+           << " {nodes : List TermData} {args : List Term} {res : Term}\n"
+              "    (h : ProgramSem.p"
+           << p.cache << " nodes args res) : ProgramSem nodes " << p.cache
+           << " args res := by\n  unfold ProgramSem\n"
+              "  refine ⟨";
+    for (size_t i = 0; i < cached.size(); ++i)
+    {
+      lemmas << "?_, ";
+    }
+    lemmas << "trivial⟩ <;> intro e <;> first | exact h | exact absurd e (by "
+              "decide)\n\n";
+    path += ".2";
+  }
+  c << "/-- What an entry of the program `pid` with the arguments `args` and "
+       "the result\n`res` says, in a store whose terms are `nodes`. -/\n"
+       "def ProgramSem (nodes : List TermData) (pid : Nat) (args : List Term) "
+       "(res : Term) : Prop :=\n"
+    << conj.str() << "  True\n\ntheorem ProgramSem.mono {nodes nodes' : List "
+                     "TermData} {pid : Nat} {args : List Term}\n"
+                     "    {res : Term} (hpre : nodes <+: nodes') (h : "
+                     "ProgramSem nodes pid args res) :\n"
+                     "    ProgramSem nodes' pid args res :=\n  ⟨"
+    << mono.str() << "trivial⟩\n\n"
+    << lemmas.str() << "end pathos_compiled_checker\n";
+  output("cache_sem.lean", c.str());
 }
 
 void RustMetaReduce::finalize()
@@ -1573,6 +2379,14 @@ void RustMetaReduce::finalize()
     }
   }
   auto names = reachable();
+  // The datatype operators are programs that the runtime calls for
+  // eo::dt_constructors and eo::dt_selectors. A signature whose programs
+  // use neither has them in its Rust and not in logos's Lean.
+  for (const std::string& n :
+       reachable({"$eo_dt_constructors", "$eo_dt_selectors"}))
+  {
+    d_leanHas.insert(n);
+  }
   selectCaches(names);
   // Every function written for the programs, in the order written, to be
   // put into modules below.
@@ -1630,34 +2444,15 @@ void RustMetaReduce::finalize()
   // cannot leave behind a partially generated checker.
   for (const auto& n : names)
   {
+    size_t before = d_leanProofs.size();
     collect(emitProgram(n, d_programs.at(n)));
-    std::string lean = replace_all(n, "-", "_");
-    if (lean == "end" || lean == "variable")
+    if (d_leanProofs.size() == before)
     {
-      lean = "__eo_" + lean;
+      d_leanProofs.emplace_back();
+      d_leanProofs.back().name = n;
+      d_leanProofs.back().why = "compiled to a function of the runtime";
     }
-    else
-    {
-      for (const auto& replacement : std::vector<Replacement>{{"++", "concat"},
-                                                              {"+", "plus"},
-                                                              {"-", "neg"},
-                                                              {"*", "mult"},
-                                                              {"=>", "imp"},
-                                                              {"<=", "leq"},
-                                                              {"<", "lt"},
-                                                              {">=", "geq"},
-                                                              {">", "gt"},
-                                                              {"=", "eq"},
-                                                              {"/", "qdiv"},
-                                                              {"^", "exp"},
-                                                              {".", "_"},
-                                                              {"@", "_at_"},
-                                                              {"$", "__"}})
-      {
-        lean = replace_all(lean, replacement.first, replacement.second);
-      }
-    }
-    manifestRows.emplace_back(n, lean);
+    manifestRows.emplace_back(n, leanName(n));
   }
   std::string lib =
       read(getResourcePath("plugins/rust_meta/runtime/lib.rs.in"));
@@ -1941,6 +2736,7 @@ void RustMetaReduce::finalize()
   output("src/schema.rs", schema());
   output("src/names.rs", constructorNames());
   output("functions.tsv", manifest.str());
+  leanProofs(numParts);
   std::ostringstream caches;
   caches << "source\tcache\tprogram_id\n";
   for (const auto& name : names)
