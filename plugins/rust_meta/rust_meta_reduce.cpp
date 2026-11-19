@@ -1948,8 +1948,8 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   {
     why[p.name] = d_leanHas.count(p.name)
                       ? p.why
-                      : "logos's Lean has no function for it: only the "
-                        "runtime's datatype operators reach it";
+                      : "no logos function: only the runtime's datatype "
+                        "operators reach it";
   }
   for (bool changed = true; changed;)
   {
