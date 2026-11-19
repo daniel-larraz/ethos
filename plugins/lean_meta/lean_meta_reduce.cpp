@@ -716,6 +716,7 @@ void LeanMetaReduce::defineProgram(const Expr& v, const Expr& prog)
   {
     return;
   }
+  d_rawProgs.emplace_back(v, prog);
   // must linearize the patterns
   std::vector<std::pair<Expr, Expr>> linProgs =
       LinearPattern::linearize(d_state, v, prog);
@@ -736,6 +737,108 @@ void LeanMetaReduce::finalizePrograms()
     bool isDefine = (d_progIsDefine.find(prog) != d_progIsDefine.end());
     Expr def = d_progToDef[prog];
     finalizeProgram(prog, def, isDefine);
+  }
+  for (const std::pair<Expr, Expr>& p : d_rawProgs)
+  {
+    printCaseDefs(p.first, p.second);
+  }
+}
+
+void LeanMetaReduce::printCaseDefs(const Expr& v, const Expr& prog)
+{
+  std::string vname = getName(v);
+  // what finalizeProgram writes no definition for has no cases here either
+  if (prog.getKind() != Kind::PROGRAM || vname == "$eo_ite"
+      || vname == "$eo_hash" || vname.compare(0, 9, "$eo_model") == 0
+      || vname == "$smtx_model_eval")
+  {
+    return;
+  }
+  Expr vt = v.getType();
+  size_t nargs = vt.getNumChildren();
+  bool isCheckerDef = false;
+  MetaKind last = MetaKind::NONE;
+  for (size_t j = 0; j < nargs; j++)
+  {
+    last = getTypeMetaKind(vt[j]);
+    isCheckerDef |= isCheckerMetaKind(last);
+  }
+  MetaKind tmk = (!isCheckerDef && isSmtMetaKind(last)) ? MetaKind::SMT_TYPE
+                                                        : MetaKind::EUNOIA;
+  // A native that a case names is named from the module its program is
+  // in, as finalizeProgram decides it, so that writing the cases changes
+  // nothing of where the native layer comes out.
+  const std::ostream* home = &d_defsTotal;
+  if (isCheckerDef)
+  {
+    home = &d_eoChecker;
+  }
+  else if (isSmtMetaKind(last))
+  {
+    home = namesModelType(vt) ? &d_smtDefs : &d_smtTypingDefs;
+  }
+  if (vname.compare(0, 10, "$eo_to_smt") == 0)
+  {
+    home = &d_eoIsObjDefs;
+  }
+  d_scope = scopeOf(home);
+  std::stringstream sig;
+  for (size_t i = 1; i < nargs; i++)
+  {
+    printMetaType(vt[i - 1], sig, tmk);
+    sig << " -> ";
+  }
+  sig << "Option (";
+  printMetaType(vt[nargs - 1], sig, tmk);
+  sig << ")";
+  for (size_t i = 0, ncases = prog.getNumChildren(); i < ncases; i++)
+  {
+    std::vector<Expr> conds;
+    Expr hd = LinearPattern::linearizeCase(d_state, prog[i][0], conds);
+    std::stringstream ret;
+    printEmbTerm(prog[i][1], ret, tmk);
+    d_caseDefs << "def " << cleanId(vname) << ".case_" << i << " : "
+               << sig.str();
+    if (nargs == 1)
+    {
+      d_caseDefs << " :=" << std::endl
+                 << "  some (" << ret.str() << ")" << std::endl
+                 << std::endl;
+      continue;
+    }
+    d_caseDefs << std::endl << "  | ";
+    bool general = true;
+    for (size_t j = 1; j < nargs; j++)
+    {
+      d_caseDefs << (j > 1 ? ", " : "");
+      printEmbTerm(hd[j], d_caseDefs, tmk, false);
+      general = general && hd[j].getKind() == Kind::PARAM;
+    }
+    d_caseDefs << " => ";
+    for (const Expr& c : conds)
+    {
+      d_caseDefs << "if ";
+      printEmbTerm(c[0], d_caseDefs, tmk, false);
+      d_caseDefs << " = ";
+      printEmbTerm(c[1], d_caseDefs, tmk, false);
+      d_caseDefs << " then ";
+    }
+    d_caseDefs << "some (" << ret.str() << ")";
+    for (size_t k = 0; k < conds.size(); k++)
+    {
+      d_caseDefs << " else none";
+    }
+    d_caseDefs << std::endl;
+    if (!general)
+    {
+      d_caseDefs << "  | ";
+      for (size_t j = 1; j < nargs; j++)
+      {
+        d_caseDefs << (j > 1 ? ", _" : "_");
+      }
+      d_caseDefs << " => none" << std::endl;
+    }
+    d_caseDefs << std::endl;
   }
 }
 
@@ -2145,6 +2248,9 @@ void LeanMetaReduce::finalizeSpec()
                        "plugins/lean_meta/lean_meta_spec_gen.lean",
                        {});
   Trace("lean-meta") << "Write lean-defs " << outPath << std::endl;
+  emitResourceFile("plugins/lean_meta/lean_meta_case_defs.lean",
+                   "plugins/lean_meta/lean_meta_case_defs_gen.lean",
+                   {{"$LEAN_CASE_DEFS$", d_caseDefs.str()}});
 }
 
 void LeanMetaReduce::finalizeLemmas()
