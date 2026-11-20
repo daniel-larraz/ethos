@@ -2091,6 +2091,28 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
           "proofs yet (HasStuck)";
     }
   }
+  if (proof.why.empty() && cases)
+  {
+    // the lemma that logos's function is the body's takes that each
+    // argument is a value a store can hold (Valid), which the proofs have
+    // for terms, proofs, the checker's states and their objects, and
+    // native Booleans
+    for (size_t i = 0; i < nargs && proof.why.empty(); ++i)
+    {
+      MetaKind ak = getTypeMetaKindFor(ty[i], MetaKind::EUNOIA, true);
+      std::ostringstream as;
+      as << ty[i];
+      if (ak != MetaKind::EUNOIA && ak != MetaKind::PROOF
+          && as.str() != "($native_type_0 \"Bool\")"
+          && as.str() != "($native_embed_checker \"CState\")"
+          && as.str() != "($native_embed_checker \"CStateObj\")")
+      {
+        proof.why =
+            "an argument of a type that has no Valid in the proofs "
+            "yet (lemma C)";
+      }
+    }
+  }
   proof.loop = loop;
   proof.cache = cache == CacheKind::NONE
                     ? ""
@@ -2101,17 +2123,6 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
       && cache != CacheKind::PROGRAM)
   {
     proof.why = "the cache of types";
-  }
-  if (proof.why.empty() && cache == CacheKind::PROGRAM)
-  {
-    // The table of what the cache holds is written for terms so far.
-    for (size_t i = 0; i < ty.getNumChildren(); ++i)
-    {
-      if (getTypeMetaKindFor(ty[i], MetaKind::EUNOIA, true) != MetaKind::EUNOIA)
-      {
-        proof.why = "a cache of results over values that are not terms";
-      }
-    }
   }
   if (proof.why.empty() && loop && !proof.groups.empty())
   {
@@ -2589,11 +2600,39 @@ void RustMetaReduce::leanProofs(size_t numParts) const
     if (!p->cache.empty())
     {
       // what the cache says of the program is what is proved of it
-      o << "    (by\n      intro s1 res hn hsem\n      obtain ⟨xs, hl, hr⟩ := "
-           "ProgramSem.of_" << p->cache << " hsem\n      cases RepList.functional hl "
-        << replist << "\n      exact hr)\n    (by\n      intro s1 res hpre h\n"
-           "      exact ProgramSem.to_" << p->cache << " ⟨[" << xlist << "], " << mono
-        << ", h⟩)\n";
+      std::string bs, ys, hb, subst, as, hput;
+      for (size_t i = 0; i < p->nargs; ++i)
+      {
+        std::string k = std::to_string(i);
+        bs += "b" + k + ", ";
+        ys += "y" + k + ", ";
+        hb += ", hb" + k;
+        subst += "      obtain rfl := Rep.functional hb" + k
+                 + " (Represents.congr h_a" + k + " hn)\n";
+        as += "a" + k + ", ";
+        hput += ", Rep.mono hpre h_a" + k;
+      }
+      o << "    (by\n      intro s1 res hn hsem\n      obtain ⟨" << bs << ys
+        << "hargs" << hb << ", hr⟩ := ProgramSem.of_" << p->cache << " hsem\n"
+        << (p->nargs == 0
+                ? ""
+                : "      simp only [List.cons.injEq, and_true] at hargs\n"
+                  "      obtain ⟨"
+                      + std::string(p->nargs == 1 ? "" : "") +
+                      [&]() {
+                        std::string r;
+                        for (size_t i = 0; i < p->nargs; ++i)
+                        {
+                          r += (i == 0 ? "rfl" : ", rfl");
+                        }
+                        return r;
+                      }()
+                      + "⟩ := hargs\n")
+        << subst
+        << "      exact hr)\n    (by\n      intro s1 res hpre h\n"
+           "      exact ProgramSem.to_"
+        << p->cache << " ⟨" << as << xlist << (p->nargs == 0 ? "" : ", ")
+        << "rfl" << hput << ", h⟩)\n";
     }
     o << "    (fun s1 m hinv1 hn hm hrem1 => by\n      spec_exact body_" << n.id
       << "_spec m (ih m hm) s1" << n.as << n.xs << " hinv1 h64 hrem1" << congr
@@ -2635,25 +2674,46 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   for (const auto& e : cached)
   {
     const LeanProof& p = *e.second;
-    std::string xs, pat;
+    // an entry: handles of the arguments, which stand for values of the
+    // program's argument types, and a handle of the program's result on
+    // them
+    std::string as, xs, ex, reps, hs, monoArgs;
     for (size_t i = 0; i < p.nargs; ++i)
     {
-      xs += " x" + std::to_string(i);
-      pat += (i == 0 ? "x" : ", x") + std::to_string(i);
+      std::string k = std::to_string(i);
+      as += (i == 0 ? "a" : ", a") + k;
+      xs += " x" + k;
+      ex += " (a" + k + " : Term)";
+      reps += " ∧ Rep nodes a" + k + ".val x" + k;
+      hs += ", h" + k;
+      monoArgs += ", Rep.mono hpre h" + k;
+    }
+    for (size_t i = 0; i < p.nargs; ++i)
+    {
+      ex += " (x" + std::to_string(i) + " : _)";
+    }
+    std::string names;
+    for (size_t i = 0; i < p.nargs; ++i)
+    {
+      names += "a" + std::to_string(i) + ", ";
+    }
+    for (size_t i = 0; i < p.nargs; ++i)
+    {
+      names += "x" + std::to_string(i) + ", ";
     }
     c << "/-- `" << p.name << "`. -/\ndef ProgramSem.p" << p.cache
-      << " (nodes : List TermData) (args : List Term) (res : Term) : Prop :=\n"
-         "  ∃ xs : List Eo.Term, RepList nodes args xs ∧\n    match xs with\n"
-         "    | ["
-      << pat << "] => Rep nodes res.val (" << leanName(p.name) << xs
-      << ")\n    | _ => False\n\ntheorem ProgramSem.p" << p.cache
+      << " (nodes : List TermData) (args : List Term) (res : Term) : Prop :=\n "
+         " "
+      << (p.nargs == 0 ? "" : "∃" + ex + ", ") << "args = [" << as << "]"
+      << reps << " ∧\n    Rep nodes res.val (" << leanName(p.name) << xs
+      << ")\n\ntheorem ProgramSem.p" << p.cache
       << ".mono {nodes nodes' : List TermData} {args : List Term} {res : "
          "Term}\n"
          "    (hpre : nodes <+: nodes') (h : ProgramSem.p"
       << p.cache << " nodes args res) :\n    ProgramSem.p" << p.cache
-      << " nodes' args res := by\n  obtain ⟨xs, hl, hr⟩ := h\n"
-         "  refine ⟨xs, RepList.mono hpre hl, ?_⟩\n"
-         "  split at hr\n  · exact Rep.mono hpre hr\n  · exact hr.elim\n\n";
+      << " nodes' args res := by\n  obtain ⟨" << names << "hargs" << hs
+      << ", hr⟩ := h\n  exact ⟨" << names << "hargs" << monoArgs
+      << ", Rep.mono hpre hr⟩\n\n";
     conj << "  (pid = " << p.cache << " → ProgramSem.p" << p.cache
          << " nodes args res) ∧\n";
     mono << "fun e => ProgramSem.p" << p.cache << ".mono hpre (h" << path
