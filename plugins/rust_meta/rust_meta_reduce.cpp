@@ -1510,6 +1510,26 @@ class RustMetaReduce::Emitter
                         v);
           return v;
         }
+        if (t.getNumChildren() == 2 && !name.empty()
+            && name.find_first_not_of("-0123456789") == std::string::npos
+            && name.find_first_of("0123456789") != std::string::npos
+            && name.size() <= 11)
+        {
+          // a numeral constant, a value (`Integer::from` of a `u32`,
+          // negated if need be): pathos proves it from the specs of `from`
+          // and `neg` (Runtime/IntNatives.lean)
+          std::string st = leanStore(), inv = leanInv();
+          std::string v = val(native(name, 0, ""));
+          leanLine("simp only [num.Integer.from_u32_spec, num.Integer.neg_spec, "
+                   "num.Integer.toInt_ofInt, Std.bind_ok]");
+          leanStoreStep(std::string(name[0] == '-' ? "Store.raw_int_neg_u32_spec "
+                                                   : "Store.raw_int_u32_spec ")
+                            + st + " " + (name[0] == '-' ? name.substr(1) : name)
+                            + "#u32 (" + name + ") (by scalar_tac) " + inv
+                            + " h64",
+                        v);
+          return v;
+        }
         if (t.getNumChildren() == 2 && name == "nat.zero")
         {
           // the natural number 0 (pathos's Runtime/Nats.lean)
@@ -1518,16 +1538,25 @@ class RustMetaReduce::Emitter
           leanStoreStep("Store.native_nat_zero_spec " + st + " " + inv + " h64", v);
           return v;
         }
-        // the native operations with a specification in the proofs
-        // (pathos's Runtime/Natives.lean: Store.native_spec_<name>)
-        static const std::set<std::string> specified{"teq",
-                                                     "Teq",
-                                                     "streq",
-                                                     "and",
-                                                     "or",
-                                                     "not",
-                                                     "string_valid",
-                                                     "string_prefix_eq"};
+        // the native operations with a specification in the proofs, and
+        // its name (pathos's Runtime/Natives.lean, Strings.lean and
+        // IntNatives.lean: Store.native_spec_<name>)
+        static const std::map<std::string, std::string> specified{
+            {"teq", "teq"},
+            {"Teq", "Teq"},
+            {"streq", "streq"},
+            {"and", "and"},
+            {"or", "or"},
+            {"not", "not"},
+            {"string_valid", "string_valid"},
+            {"string_prefix_eq", "string_prefix_eq"},
+            {"zeq", "zeq"},
+            {"zleq", "zleq"},
+            {"mod_total", "mod_total"},
+            {"int.pow2", "int_pow2"},
+            {"int.to_nat", "int_to_nat"},
+            {"Int.toNat", "int_to_nat"},
+            {"nat.succ", "nat_succ"}};
         if (!specified.count(name))
         {
           leanUnsupported("the native operation " + name);
@@ -1543,7 +1572,7 @@ class RustMetaReduce::Emitter
         std::string v = val(native(name, t.getNumChildren() - 2, as));
         if (specified.count(name))
         {
-          leanArgsStep("Store.native_spec_" + name, st, inv, vs, v);
+          leanArgsStep("Store.native_spec_" + specified.at(name), st, inv, vs, v);
         }
         return v;
       }
