@@ -2442,7 +2442,8 @@ void RustMetaReduce::leanProofs(size_t numParts) const
              + " h64 " + (k == 0 ? "hrem" : "(hG.rem hrem)") + n.reps + notStuck
              + "\n    as ⟨s" + std::to_string(k + 1) + ", hinv"
              + std::to_string(k + 1) + ", hc" + std::to_string(k)
-             + "⟩ growing hG carrying" + n.reps + "\n    split (show "
+             + "⟩ growing hG carrying" + n.reps
+             + (body && p->loop ? " hbud" : "") + "\n    split (show "
              + leaves(lo, hi) + " = " + leaves(lo, m.lo) + " ++ "
              + leaves(m.lo, m.hi) + " ++ " + leaves(m.hi, hi)
              + " from rfl)\n    otherwise " + pat + " using" + extra
@@ -2494,9 +2495,11 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       << n.as << post;
     if (p->loop)
     {
+      // a round that goes round again has used up some of the budget of
+      // calls (its `tick`): the measure of the induction over the loop
       o << "      | " << ok << " (Next.Done t) => Represents.rep s' t (" << n.lean
         << n.xs << ")\n      | " << ok << " (Next.Again arr) =>\n        "
-        << again << " ∧\n          " << n.lean << n.xs << " = " << n.lean << ys
+        << "s'.budget < s.budget ∧ " << again << " ∧\n          " << n.lean << n.xs << " = " << n.lean << ys
         << "\n";
     }
     else
@@ -2540,7 +2543,8 @@ void RustMetaReduce::leanProofs(size_t numParts) const
         << "_" << n.id << "_spec n ih s" << st() << n.as << n.xs << " hinv"
         << st() << " h64 " << (store == 0 ? "hrem" : "(hG.rem hrem)") << n.reps
         << notStuck << "\n    as ⟨s" << store + 1 << ", hinv" << store + 1 << ", hc"
-        << c << "⟩ growing hG carrying" << n.reps << " using" << facts << "\n";
+        << c << "⟩ growing hG carrying" << n.reps << (p->loop ? " hbud" : "")
+        << " using" << facts << "\n";
       facts += " hc" + std::to_string(c);
       store++;
     }
@@ -2559,30 +2563,31 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       o << "theorem body_" << n.id << "_spec" << head << " :\n    body_" << n.id
         << " s" << n.as << post << result << " := by\n  unfold body_" << n.id
         << "\n";
+      // by induction on the budget of calls, which every round that goes
+      // round again uses up (its `tick`), over the loop's equation: a loop
+      // that Aeneas puts in a block with the programs it calls has no
+      // fixpoint induction of its own
       std::ostringstream motive;
-      motive << "∀" << n.handles << " (s : Store)" << n.terms
-             << ", s.Inv → s.remaining ≤ n →\n     ";
+      motive << "∀ (k : Nat)" << n.handles << " (s : Store)" << n.terms
+             << ", s.budget ≤ k → s.Inv → s.remaining ≤ n →\n     ";
       for (size_t i = 0; i < p->nargs; ++i)
       {
         motive << " Represents.rep s a" << i << " x_a" << i << " →";
       }
-      motive << "\n      f" << n.as << " s" << post << result;
-      std::string of = motive.str();
-      size_t at = of.find("\n      f ");
-      std::string whole = of;
-      whole.replace(at, 8, "\n      body_" + n.id + "_loop");
-      o << "  refine (?_ : " << whole << ")" << order << " hinv hrem" << n.reps
-        << "\n  apply body_" << n.id
-        << "_loop.fixpoint_induct\n    (motive := fun f => " << of
-        << ")\n  · prove_adm\n  · intro loop ihl" << order << " hinv hrem"
-        << n.reps << "\n    simp only\n    step with step_" << n.id
-        << "_spec n ih s" << n.as << n.xs << " hinv h64 hrem" << n.reps
-        << " as ⟨r, s1, hinv1, hg1, hr⟩\n    cases r with\n"
-           "    | Err e => simp only [WP.dspec_ok, WP.uncurry'_pair]; "
-           "exact ⟨hinv1, hg1, trivial⟩\n    | Ok nx =>\n      cases nx with\n"
-           "      | Done value =>\n        simp only [WP.dspec_ok, "
-           "WP.uncurry'_pair]\n        exact ⟨hinv1, hg1, hr⟩\n"
-           "      | Again next =>\n        obtain ⟨";
+      motive << "\n      body_" << n.id << "_loop" << n.as << " s" << post
+             << result;
+      o << "  refine (?_ : " << motive.str() << ") s.budget" << order
+        << " le_rfl hinv hrem" << n.reps << "\n  intro k\n"
+        << "  refine Nat.strong_induction_on k ?_\n  intro k ihl" << order
+        << " hk hinv hrem" << n.reps << "\n  unfold body_" << n.id << "_loop"
+        << "\n  step with step_" << n.id << "_spec n ih s" << n.as << n.xs
+        << " hinv h64 hrem" << n.reps
+        << " as ⟨r, s1, hinv1, hg1, hr⟩\n  cases r with\n"
+           "  | Err e => simp only [WP.dspec_ok, WP.uncurry'_pair]; "
+           "exact ⟨hinv1, hg1, trivial⟩\n  | Ok nx =>\n    cases nx with\n"
+           "    | Done value =>\n      simp only [WP.dspec_ok, "
+           "WP.uncurry'_pair]\n      exact ⟨hinv1, hg1, hr⟩\n"
+           "    | Again next =>\n      obtain ⟨hlt, ";
       std::string us, bs, ys2, hreps;
       for (size_t i = 0; i < p->nargs; ++i)
       {
@@ -2592,13 +2597,13 @@ void RustMetaReduce::leanProofs(size_t numParts) const
         ys2 += " y" + k;
         hreps += ", hrep" + k;
       }
-      o << "hnext" << hreps << ", heq⟩ := hr\n        simp only\n"
-           "        have hlen : next.length = " << p->nargs
+      o << "hnext" << hreps << ", heq⟩ := hr\n      simp only\n"
+           "      have hlen : next.length = " << p->nargs
         << " := by simp [Array.length, hnext]\n";
       for (size_t i = 0; i < p->nargs; ++i)
       {
         std::string k = std::to_string(i);
-        o << "        step as ⟨b" << k << ", hb" << k << "⟩\n        obtain rfl : b"
+        o << "      step as ⟨b" << k << ", hb" << k << "⟩\n      obtain rfl : b"
           << k << " = u" << k << " := by simp [hb" << k << ", hnext]\n";
       }
       std::string hs2 = hreps;
@@ -2609,9 +2614,9 @@ void RustMetaReduce::leanProofs(size_t numParts) const
           ch = ' ';
         }
       }
-      o << "        apply WP.dspec_mono (ihl" << bs << " s1" << ys2
-        << " hinv1 (hg1.rem hrem)" << hs2
-        << ")\n        loop_close hg1 heq\n\n";
+      o << "      apply WP.dspec_mono (ihl s1.budget (by omega)" << bs << " s1"
+        << ys2 << " le_rfl hinv1 (hg1.rem hrem)" << hs2
+        << ")\n      loop_close hg1 heq\n\n";
     }
     // the program: the body between `enter` and `leave`
     std::string congr, xlist, replist = "List.Forall₂.nil", mono = replist;
