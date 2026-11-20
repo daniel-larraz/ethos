@@ -110,8 +110,14 @@ class RustMetaReduce : public MetaReducePlugin
     bool split = false;
     std::vector<Case> cases;
     bool loop = false;
-    /** The number of its cache of results, or empty. */
+    /**
+     * The number of its cache of results, or empty. A program of the type
+     * cache has the number its kind has in pathos's table of cache
+     * meanings (2^32 for `$eo_typeof`, 2^32 + 1 for `$smtx_typeof`: no
+     * program id is that large), and `typeKind` names the kind.
+     */
     std::string cache;
+    std::string typeKind;
     std::set<std::string> calls;
     std::string why;
   };

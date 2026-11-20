@@ -2381,16 +2381,14 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     }
   }
   proof.loop = loop;
-  proof.cache = cache == CacheKind::NONE
-                    ? ""
-                    : cache == CacheKind::PROGRAM
-                          ? std::to_string(d_programIds.at(name))
-                          : "type";
-  if (proof.why.empty() && cache != CacheKind::NONE
-      && cache != CacheKind::PROGRAM)
-  {
-    proof.why = "the cache of types";
-  }
+  // pathos's Store.Ops: typeSemId
+  proof.cache = cache == CacheKind::NONE      ? ""
+                : cache == CacheKind::PROGRAM ? std::to_string(d_programIds.at(name))
+                : cache == CacheKind::EO_TYPE ? "4294967296"
+                                              : "4294967297";
+  proof.typeKind = cache == CacheKind::EO_TYPE    ? "Eunoia"
+                   : cache == CacheKind::SMT_TYPE ? "Smt"
+                                                  : "";
   // Helpers are module items; emit them after the functions that call them.
   out << helpers.str();
   return out.str();
@@ -2882,8 +2880,11 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       << n.id << ".Spec n := by\n  intro s" << n.as << n.xs << " hinv h64 hrem"
       << n.reps << "\n  unfold " << n.id << "\n  apply WP.dspec_mono (Store."
       << (p->cache.empty() ? "framed s hinv hrem"
-                           : "framed_cached s hinv hrem " + p->cache + "#u32 _ ["
-                                 + list_of(p->nargs) + "] rfl")
+          : !p->typeKind.empty()
+              ? "framed_type_cached s hinv hrem h64 cache.TypeCacheKind."
+                    + p->typeKind + " a0"
+              : "framed_cached s hinv hrem " + p->cache + "#u32 _ ["
+                    + list_of(p->nargs) + "] rfl")
       << "\n    (fun s1 => body_" << n.id << " s1" << n.as << ") " << fpost
       << "\n    (by intro _ _ _ hn h; congr_one h hn)\n";
     if (!p->cache.empty())
@@ -2953,9 +2954,9 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   std::vector<std::pair<size_t, const LeanProof*>> cached;
   for (const LeanProof& p : d_leanProofs)
   {
-    if (!p.cache.empty() && p.cache != "type" && why[p.name].empty())
+    if (!p.cache.empty() && why[p.name].empty())
     {
-      cached.emplace_back(std::stoul(p.cache), &p);
+      cached.emplace_back(std::stoull(p.cache), &p);
     }
   }
   std::sort(cached.begin(), cached.end());
