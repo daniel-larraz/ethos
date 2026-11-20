@@ -1547,7 +1547,11 @@ class RustMetaReduce::Emitter
         }
         return v;
       }
-      if (!leanHasCtorLemma(n))
+      // a numeral or a rational literal from its native value (pathos's
+      // Runtime/Numbers.lean); other literal constructors have no lemma yet
+      const bool number = (n == "$emb_Numeral" || n == "$emb_Rational")
+                          && t.getNumChildren() == 2;
+      if (!number && !leanHasCtorLemma(n))
       {
         leanUnsupported("the constructor " + n
                         + " with arguments, which is not stored as a node");
@@ -1567,7 +1571,11 @@ class RustMetaReduce::Emitter
         reps += " h_" + ln(x);
       }
       leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
-      leanStoreStep("CtorSpec." + ident(n) + ".construct " + st + " e_" + v
+      leanStoreStep((number ? std::string(n == "$emb_Numeral"
+                                              ? "Store.construct_numeral_spec "
+                                              : "Store.construct_rational_spec ")
+                            : "CtorSpec." + ident(n) + ".construct ")
+                        + st + " e_" + v
                         + " (by rw [he_" + v + "]; rfl)" + reps + " " + inv
                         + " h64",
                     v);
@@ -1772,15 +1780,21 @@ class RustMetaReduce::Emitter
           lean.facts.push_back("h_" + f);
         }
       }
-      else if (data && n == "$emb_Boolean" && fields.size() == 1)
+      else if (data && fields.size() == 1
+               && (n == "$emb_Boolean" || n == "$emb_Numeral"
+                   || n == "$emb_Rational"))
       {
-        // a Boolean literal: destruct stores a native copy of its value
-        // (pathos's Runtime/Literals.lean), so the store changes
+        // a Boolean, numeral or rational literal: destruct stores a native
+        // copy of its value (pathos's Runtime/Literals.lean and
+        // Runtime/Numbers.lean), so the store changes
+        std::string spec = n == "$emb_Boolean"   ? "Store.destruct_boolean_spec"
+                           : n == "$emb_Numeral" ? "Store.destruct_numeral_spec"
+                                                 : "Store.destruct_rational_spec";
         std::string st = leanStore(), inv = leanInv();
         std::string before = words(lean.facts);
         lean.store++;
         const std::string& f = fields[0];
-        leanLine("pat_destruct_lit Store.destruct_boolean_spec " + st + " "
+        leanLine("pat_destruct_lit " + spec + " " + st + " "
                  + ln(value) + " h_" + ln(value) + " " + inv + " h64 as ⟨" + f
                  + ", x_" + f + ", h_" + f + "⟩ storing ⟨" + leanStore() + ", "
                  + leanInv() + "⟩ growing hG carrying" + before + " in "
