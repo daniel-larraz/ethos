@@ -2107,8 +2107,8 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     MetaKind rk = getTypeMetaKindFor(rt, MetaKind::EUNOIA, true);
     std::ostringstream rs;
     rs << rt;
-    if (rk != MetaKind::EUNOIA && rk != MetaKind::PROOF
-        && rs.str() != "($native_type_0 \"Bool\")")
+    proof.split = rk != MetaKind::EUNOIA && rk != MetaKind::PROOF;
+    if (proof.split && rs.str() != "($native_type_0 \"Bool\")")
     {
       proof.noCase = "default";
     }
@@ -2117,17 +2117,32 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
   {
     // the lemma that logos's function is the body's takes that each
     // argument is a value a store can hold (Valid), which the proofs have
-    // for terms, proofs, the checker's states and their objects, and
-    // native Booleans
+    // for terms and proofs, and as `True` for the types below
+    // (Runtime/Embed.lean says why that is enough)
+    static const std::set<std::string> validTypes = {
+        "($native_type_0 \"Bool\")",
+        "($native_type_0 \"String\")",
+        "($native_type_0 \"Nat\")",
+        "($native_embed_checker \"CState\")",
+        "($native_embed_checker \"CStateObj\")",
+        "($native_embed_checker \"CArgList\")",
+        "($native_embed_checker \"CCmdList\")",
+        "($native_embed_checker \"CIndexList\")",
+        "$eo_Rule",
+        "($native_embed_eo \"Datatype\")",
+        "($native_embed_eo \"DatatypeCons\")",
+        "($native_embed_eo \"DatatypeDecl\")",
+        "$smt_Type",
+        "($native_embed_smt \"SmtDatatype\")",
+        "($native_embed_smt \"SmtDatatypeCons\")",
+        "($native_embed_smt \"SmtDatatypeDecl\")"};
     for (size_t i = 0; i < nargs && proof.why.empty(); ++i)
     {
       MetaKind ak = getTypeMetaKindFor(ty[i], MetaKind::EUNOIA, true);
       std::ostringstream as;
       as << ty[i];
       if (ak != MetaKind::EUNOIA && ak != MetaKind::PROOF
-          && as.str() != "($native_type_0 \"Bool\")"
-          && as.str() != "($native_embed_checker \"CState\")"
-          && as.str() != "($native_embed_checker \"CStateObj\")")
+          && validTypes.count(as.str()) == 0)
       {
         proof.why =
             "an argument of a type that has no Valid in the proofs "
@@ -2494,10 +2509,9 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       << "\n  have hG := Store.Grows.refl s\n";
     size_t store = 0;
     auto st = [&]() { return store == 0 ? "" : std::to_string(store); };
-    // where lemma C gives `default`, the proof that no case fails to apply
-    // may split on the arguments
-    const std::string splitting =
-        p->noCase == "default" ? " splitting" + n.xs : "";
+    // for a type but terms and proofs, the proof that no case fails to
+    // apply may split on the arguments
+    const std::string splitting = p->split ? " splitting" + n.xs : "";
     if (p->loop)
     {
       store++;

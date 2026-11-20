@@ -104,6 +104,10 @@ class RustMetaReduce : public MetaReducePlugin
      * `default`, which the body never returns: its cases cover every
      * value (a last case that matches anything, or one per constructor). */
     std::string noCase = "HasStuck.stuck";
+    /** Whether the proof that no case fails to apply may split on the
+     * arguments: for every type but terms and proofs, whose stuck value
+     * the body gives (handle 0 stands for no other value). */
+    bool split = false;
     std::vector<Case> cases;
     bool loop = false;
     /** The number of its cache of results, or empty. */
