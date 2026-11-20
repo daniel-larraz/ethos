@@ -1798,22 +1798,36 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
   // Lean, see `close`).
   const size_t groupSize = 4;
   std::vector<std::string> level;
+  // for the proof: the cases each entry of `level` tries, and whether it
+  // is a case or a group
+  std::vector<LeanProof::Member> members;
   for (size_t c = 0; c < ncases; ++c)
   {
     level.push_back("case_" + std::to_string(c) + "_" + id);
+    members.push_back({level.back(), c, c + 1, true});
   }
-  if (level.size() > groupSize)
-  {
-    proof.why = "more than four cases";
-  }
+
   for (size_t depth = 0; level.size() > groupSize; ++depth)
   {
     std::vector<std::string> above;
+    std::vector<LeanProof::Member> aboveMembers;
     for (size_t g = 0; g * groupSize < level.size(); ++g)
     {
       std::string group = "cases_" + std::to_string(depth) + "_"
                           + std::to_string(g) + "_" + id;
       above.push_back(group);
+      LeanProof::Group pg;
+      pg.name = group;
+      for (size_t c = g * groupSize;
+           c < level.size() && c < (g + 1) * groupSize;
+           ++c)
+      {
+        pg.members.push_back(members[c]);
+      }
+      pg.lo = pg.members.front().lo;
+      pg.hi = pg.members.back().hi;
+      proof.groups.push_back(pg);
+      aboveMembers.push_back({group, pg.lo, pg.hi, false});
       helpers << "fn " << group << "(s: &mut Store" << params
               << ") -> CheckResult<Option<" << result << ">> {\n";
       for (size_t c = g * groupSize;
@@ -1825,7 +1839,9 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
       helpers << "Ok(None)\n}\n";
     }
     level = above;
+    members = aboveMembers;
   }
+  proof.top = members;
   for (const std::string& fn : level)
   {
     attemptCase(tries, fn, false);
@@ -1913,6 +1929,7 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     pc.lines = e.lean.lines;
     pc.lines.push_back(last + " in " + caseDef + " using"
                        + Emitter::words(e.lean.pure));
+    pc.why = e.lean.why;
     proof.cases.push_back(pc);
     proof.calls.insert(e.lean.calls.begin(), e.lean.calls.end());
     if (proof.why.empty() && !e.lean.why.empty())
@@ -1957,6 +1974,12 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
         proof.why = "a cache of results over values that are not terms";
       }
     }
+  }
+  if (proof.why.empty() && loop && !proof.groups.empty())
+  {
+    // last: the emitter writes no proof of a round over groups yet, but
+    // a program that has another reason is told that one first
+    proof.why = "a loop whose cases are tried in groups";
   }
   // Helpers are module items; emit them after the functions that call them.
   out << helpers.str();
@@ -2185,6 +2208,82 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       }
       o << "\n";
     }
+    // The groups of cases: a group answers what the first of its cases
+    // that answers does, or none of them answers.
+    auto leaves = [&](size_t lo, size_t hi) {
+      std::string l = "[";
+      for (size_t c = lo; c < hi; ++c)
+      {
+        l += (c == lo ? "" : ", ") + std::string("EoCases.") + leanName(p->name)
+             + ".case_" + std::to_string(c) + n.xs;
+      }
+      return l + "]";
+    };
+    auto names = [&](size_t lo, size_t hi) {
+      std::string l;
+      for (size_t c = lo; c < hi; ++c)
+      {
+        l += (c == lo ? "" : ", ") + std::string("hl_") + std::to_string(c);
+      }
+      return l;
+    };
+    // the facts that the cases [lo, hi) answered none
+    auto noneFacts = [&](size_t lo, size_t hi) {
+      std::string l;
+      for (size_t c = lo; c < hi; ++c)
+      {
+        l += " hl_" + std::to_string(c);
+      }
+      return l;
+    };
+    // `group_step` for the member `m` of a whole that tries the cases
+    // [lo, hi), from the k-th store
+    auto groupStep = [&](const LeanProof::Member& m,
+                         size_t lo,
+                         size_t hi,
+                         size_t k,
+                         const std::string& extra,
+                         bool body) {
+      std::string sk = k == 0 ? "" : std::to_string(k);
+      std::string pat = "⟨" + names(m.lo, m.hi) + "⟩";
+      return std::string(body ? "  body_group_step" : "  group_step") + " with "
+             + m.name + "_spec n ih s" + sk + n.as + n.xs + " hinv" + sk
+             + " h64 " + (k == 0 ? "hrem" : "(hG.rem hrem)") + n.reps + notStuck
+             + "\n    as ⟨s" + std::to_string(k + 1) + ", hinv"
+             + std::to_string(k + 1) + ", hc" + std::to_string(k)
+             + "⟩ growing hG carrying" + n.reps + "\n    split (show "
+             + leaves(lo, hi) + " = " + leaves(lo, m.lo) + " ++ "
+             + leaves(m.lo, m.hi) + " ++ " + leaves(m.hi, hi)
+             + " from rfl)\n    otherwise " + pat + " using" + extra
+             + noneFacts(lo, m.lo) + "\n";
+    };
+    for (const LeanProof::Group& g : p->groups)
+    {
+      const std::string& fn = g.name;
+      o << "theorem " << fn << "_spec" << head << stuck << " :\n    " << fn
+        << " s" << n.as << post << "      | " << ok
+        << " (some t) =>\n        ∃ res, (∀ d, firstSome " << leaves(g.lo, g.hi)
+        << " d = res) ∧ Represents.rep s' t res\n      | " << ok << " none =>";
+      for (size_t c = g.lo; c < g.hi; ++c)
+      {
+        o << (c == g.lo ? " " : " ∧ ") << "EoCases." << leanName(p->name)
+          << ".case_" << c << n.xs << " = none";
+      }
+      o << "\n      | " << err << " _ => True ⦄div := by\n  unfold " << fn
+        << "\n  have hG := Store.Grows.refl s\n";
+      size_t k = 0;
+      for (const LeanProof::Member& m : g.members)
+      {
+        // a member is passed the facts that the arguments are not stuck,
+        // as the group is
+        o << groupStep(m, g.lo, g.hi, k, facts, false);
+        ++k;
+      }
+      o << "  group_none hinv" << k << " hG with "
+        << (g.hi - g.lo == 1 ? names(g.lo, g.hi)
+                             : "⟨" + names(g.lo, g.hi) + "⟩")
+        << "\n\n";
+    }
     // what the body computes, in the functions of the cases
     o << "/-- logos's `" << leanName(p->name)
       << "` is what the generated body does: the tests for the stuck term,\n"
@@ -2229,7 +2328,19 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       o << "  stuck_check h_a" << i << " : x_a" << i << " as hn_a" << i
         << " else hinv" << st() << " hG\n";
     }
-    for (size_t c = 0; c < p->cases.size(); ++c)
+    if (!p->groups.empty())
+    {
+      // the body tries the top groups
+      std::string hn = facts;
+      for (const LeanProof::Member& m : p->top)
+      {
+        o << groupStep(m, 0, p->cases.size(), store, hn, true);
+        store++;
+      }
+      o << "  body_stuck hinv" << st() << " hG using" << hn
+        << noneFacts(0, p->cases.size()) << " in" << defs << "\n\n";
+    }
+    for (size_t c = 0; p->groups.empty() && c < p->cases.size(); ++c)
     {
       o << "  " << (p->loop ? "round_step" : "case_step") << " with case_" << c
         << "_" << n.id << "_spec n ih s" << st() << n.as << n.xs << " hinv"
@@ -2239,8 +2350,11 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       facts += " hc" + std::to_string(c);
       store++;
     }
-    o << "  " << (p->loop ? "round_stuck" : "body_stuck") << " hinv" << st()
-      << " hG using" << facts << " in" << defs << "\n\n";
+    if (p->groups.empty())
+    {
+      o << "  " << (p->loop ? "round_stuck" : "body_stuck") << " hinv" << st()
+        << " hG using" << facts << " in" << defs << "\n\n";
+    }
     const std::string result = "      | " + ok + " t => Represents.rep s' t ("
                                + n.lean + n.xs + ")\n      | " + err
                                + " _ => True ⦄div";

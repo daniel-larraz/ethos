@@ -75,7 +75,26 @@ class RustMetaReduce : public MetaReducePlugin
     {
       std::string unfolds;
       std::vector<std::string> lines;
+      /** What the case has that the script has no line for, or empty. */
+      std::string why;
     };
+    /** A case, or a group of cases, and the cases it tries [lo, hi). */
+    struct Member
+    {
+      std::string name;
+      size_t lo, hi;
+      bool leaf;
+    };
+    struct Group
+    {
+      std::string name;
+      std::vector<Member> members;
+      size_t lo = 0, hi = 0;
+    };
+    /** The groups, each after the groups it tries. */
+    std::vector<Group> groups;
+    /** What the body tries. */
+    std::vector<Member> top;
     std::string name;
     size_t nargs = 0;
     /** The arguments the body tests for the stuck term, in order. */
