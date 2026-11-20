@@ -1703,6 +1703,96 @@ std::string LeanMetaReduce::printEmbedding() const
       }
     }
     o << "end\n\n";
+    // What a value's tree says of the value: the inversions of enc.
+    for (const std::string& ty : scc)
+    {
+      std::string q = qualified(ty);
+      // a user operator's tree is a node of the operator's own
+      // constructor: the cases of the operator tell it from the others
+      bool hasUOp = false;
+      for (const EmbedCtor* c : byType.at(ty))
+      {
+        hasUOp |= c->sname == "$emb_UOp";
+      }
+      std::string tac =
+          hasUOp ? "  cases x\n  case UOp y => cases y <;> simp_all [enc_" + ty
+                       + ", uop]\n  all_goals simp_all [enc_" + ty + "]\n"
+                 : "  cases x <;> simp_all [enc_" + ty + "]\n";
+      std::string litCases;
+      for (const EmbedCtor* c : byType.at(ty))
+      {
+        std::string k = q + "." + c->cname;
+        std::string vars, encs;
+        for (size_t i = 0; i < c->fields.size(); i++)
+        {
+          std::string x = "x" + std::to_string(i);
+          vars += " " + x;
+          encs += (i == 0 ? "" : ", ") + fieldEnc(c->fields[i], x);
+        }
+        if (c->sname == "$emb_Stuck")
+        {
+          o << "theorem inv_" << ty << "_Stuck {x : " << q << "} (h : enc_"
+            << ty << " x = Tree.stuck) : x = " << k << " := by\n"
+            << tac << "\n";
+        }
+        else if (c->sname == "$emb_Apply")
+        {
+          o << "theorem inv_" << ty << "_Apply {x : " << q
+            << "} {a b : Tree} (h : enc_" << ty
+            << " x = Tree.apply a b) :\n    ∃ x0 x1, x = " << k
+            << " x0 x1 ∧ a = " << fieldEnc(c->fields[0], "x0")
+            << " ∧ b = " << fieldEnc(c->fields[1], "x1") << " := by\n"
+            << tac << "\n";
+        }
+        else if (c->sname == "$emb_UOp")
+        {
+          o << "theorem inv_" << ty << "_UOp {x : " << q
+            << "} {op : Eo.UserOp} {ts : List Tree}\n    (h : enc_" << ty
+            << " x = Tree.node (uop op) ts) : x = " << k
+            << " op ∧ ts = [] := by\n  cases x\n  case UOp y => cases y <;> "
+               "cases op <;> simp_all [enc_"
+            << ty << ", uop]\n  all_goals cases op <;> simp_all [enc_" << ty
+            << ", uop]\n\n";
+        }
+        else if (lits.count(c->sname))
+        {
+          std::string l = c->sname == "$emb_Boolean" ? "lit.Lit.Boolean x0"
+                          : c->sname == "$emb_Numeral"
+                              ? "lit.Lit.Numeral (num.Integer.ofInt x0)"
+                          : c->sname == "$emb_Rational"
+                              ? "lit.Lit.Rational (num.Rational.ofRat x0)"
+                          : c->sname == "$emb_String"
+                              ? "lit.Lit.Str (Tree.strOf x0)"
+                              : "lit.Lit.Binary (Tree.bvOf x0 x1)";
+          litCases += std::string(litCases.empty() ? "" : " ∨\n      ") + "(∃"
+                      + vars + ", x = " + k + vars + " ∧ l = " + l + ")";
+        }
+        else
+        {
+          o << "theorem inv_" << ty << "_" << c->cname << " {x : " << q
+            << "} {ts : List Tree}\n    (h : enc_" << ty
+            << " x = Tree.node schema.Constructor." << rustIdent(c->sname)
+            << " ts) :\n    ";
+          if (c->fields.empty())
+          {
+            o << "x = " << k << " ∧ ts = []";
+          }
+          else
+          {
+            o << "∃" << vars << ", x = " << k << vars << " ∧ ts = [" << encs
+              << "]";
+          }
+          o << " := by\n" << tac << "\n";
+        }
+      }
+      if (!litCases.empty())
+      {
+        o << "theorem inv_" << ty << "_lit {x : " << q
+          << "} {l : lit.Lit} (h : enc_" << ty << " x = Tree.lit l) :\n    "
+          << litCases << " := by\n"
+          << tac << "\n";
+      }
+    }
     // dec (enc x) = some x
     o << "mutual\n";
     for (const std::string& ty : scc)
