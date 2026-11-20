@@ -1579,9 +1579,11 @@ class RustMetaReduce::Emitter
         }
         return v;
       }
-      // a numeral or a rational literal from its native value (pathos's
-      // Runtime/Numbers.lean); other literal constructors have no lemma yet
-      const bool number = (n == "$emb_Numeral" || n == "$emb_Rational")
+      // a numeral, rational or string literal from its native value
+      // (pathos's Runtime/Numbers.lean and Runtime/StringLits.lean); other
+      // literal constructors have no lemma yet
+      const bool number = (n == "$emb_Numeral" || n == "$emb_Rational"
+                           || n == "$emb_String")
                           && t.getNumChildren() == 2;
       if (!number && !leanHasCtorLemma(n))
       {
@@ -1605,7 +1607,9 @@ class RustMetaReduce::Emitter
       leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
       leanStoreStep((number ? std::string(n == "$emb_Numeral"
                                               ? "Store.construct_numeral_spec "
-                                              : "Store.construct_rational_spec ")
+                                          : n == "$emb_Rational"
+                                              ? "Store.construct_rational_spec "
+                                              : "Store.construct_string_spec ")
                             : "CtorSpec." + ident(n) + ".construct ")
                         + st + " e_" + v
                         + " (by rw [he_" + v + "]; rfl)" + reps + " " + inv
@@ -1816,14 +1820,16 @@ class RustMetaReduce::Emitter
       }
       else if (data && fields.size() == 1
                && (n == "$emb_Boolean" || n == "$emb_Numeral"
-                   || n == "$emb_Rational"))
+                   || n == "$emb_Rational" || n == "$emb_String"))
       {
-        // a Boolean, numeral or rational literal: destruct stores a native
-        // copy of its value (pathos's Runtime/Literals.lean and
-        // Runtime/Numbers.lean), so the store changes
-        std::string spec = n == "$emb_Boolean"   ? "Store.destruct_boolean_spec"
-                           : n == "$emb_Numeral" ? "Store.destruct_numeral_spec"
-                                                 : "Store.destruct_rational_spec";
+        // a Boolean, numeral, rational or string literal: destruct stores a
+        // native copy of its value (pathos's Runtime/Literals.lean,
+        // Runtime/Numbers.lean and Runtime/StringLits.lean), so the store
+        // changes
+        std::string spec = n == "$emb_Boolean"    ? "Store.destruct_boolean_spec"
+                           : n == "$emb_Numeral"  ? "Store.destruct_numeral_spec"
+                           : n == "$emb_Rational" ? "Store.destruct_rational_spec"
+                                                  : "Store.destruct_string_spec";
         std::string st = leanStore(), inv = leanInv();
         std::string before = words(lean.facts);
         lean.store++;
