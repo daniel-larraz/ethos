@@ -620,6 +620,12 @@ class RustMetaReduce::Emitter
     std::string indent;
     /** A Rust variable that the Lean has under another name. */
     std::map<std::string, std::string> alias;
+    /**
+     * The width and value fields of a binary literal that a pattern took
+     * apart ("<width> <value>"), and the handle of the literal: building
+     * the binary again from them is in range.
+     */
+    std::map<std::string, std::string> binaryOf;
   };
   Lean lean;
   /** The Lean name of a Rust variable. */
@@ -1610,17 +1616,28 @@ class RustMetaReduce::Emitter
       const bool number = (n == "$emb_Numeral" || n == "$emb_Rational"
                            || n == "$emb_String")
                           && t.getNumChildren() == 2;
-      if (!number && !leanHasCtorLemma(n))
-      {
-        leanUnsupported("the constructor " + n
-                        + " with arguments, which is not stored as a node");
-      }
       std::vector<std::string> vs;
       std::string as;
       for (size_t i = 1; i < t.getNumChildren(); ++i)
       {
         vs.push_back(expr(t[i]));
         as += (i == 1 ? "" : ", ") + vs.back();
+      }
+      // a binary literal from the width and value that a pattern took from
+      // one, so they are in range (pathos's Runtime/StringLits.lean)
+      std::string binary;
+      if (n == "$emb_Binary" && vs.size() == 2)
+      {
+        auto it = lean.binaryOf.find(ln(vs[0]) + " " + ln(vs[1]));
+        if (it != lean.binaryOf.end())
+        {
+          binary = it->second;
+        }
+      }
+      if (!number && binary.empty() && !leanHasCtorLemma(n))
+      {
+        leanUnsupported("the constructor " + n
+                        + " with arguments, which is not stored as a node");
       }
       std::string st = leanStore(), inv = leanInv();
       std::string v = val("s.construct(" + ctor(n) + ", &[" + as + "])?");
@@ -1635,10 +1652,14 @@ class RustMetaReduce::Emitter
                                           : n == "$emb_Rational"
                                               ? "Store.construct_rational_spec "
                                               : "Store.construct_string_spec ")
-                            : "CtorSpec." + ident(n) + ".construct ")
+                     : !binary.empty() ? std::string("Store.construct_binary_spec ")
+                                       : "CtorSpec." + ident(n) + ".construct ")
                         + st + " e_" + v
-                        + " (by rw [he_" + v + "]; rfl)" + reps + " " + inv
-                        + " h64",
+                        + " (by rw [he_" + v + "]; rfl)" + reps
+                        + (binary.empty()
+                               ? std::string()
+                               : " (Store.rep_binary_okBv h_" + binary + ")")
+                        + " " + inv + " h64",
                     v);
       lean.built.insert(v);
       return v;
@@ -1865,6 +1886,24 @@ class RustMetaReduce::Emitter
                  + leanInv() + "⟩ growing hG carrying" + before + " in "
                  + lean.caseDef);
         lean.facts.push_back("h_" + f);
+      }
+      else if (data && fields.size() == 2 && n == "$emb_Binary")
+      {
+        // a binary literal: destruct stores its width and its value as two
+        // numerals (pathos's Runtime/StringLits.lean)
+        std::string st = leanStore(), inv = leanInv();
+        std::string before = words(lean.facts);
+        lean.store++;
+        const std::string& f = fields[0];
+        const std::string& g = fields[1];
+        leanLine("pat_destruct_lit2 Store.destruct_binary_spec " + st + " "
+                 + ln(value) + " h_" + ln(value) + " " + inv + " h64 as ⟨" + f
+                 + ", x_" + f + ", h_" + f + "⟩ ⟨" + g + ", x_" + g + ", h_" + g
+                 + "⟩ storing ⟨" + leanStore() + ", " + leanInv()
+                 + "⟩ growing hG carrying" + before + " in " + lean.caseDef);
+        lean.facts.push_back("h_" + f);
+        lean.facts.push_back("h_" + g);
+        lean.binaryOf[f + " " + g] = ln(value);
       }
       else if (data && !leanHasCtorLemma(n))
       {
