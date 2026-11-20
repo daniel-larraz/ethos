@@ -1444,8 +1444,14 @@ class RustMetaReduce::Emitter
         }
         // the native operations with a specification in the proofs
         // (pathos's Runtime/Natives.lean: Store.native_spec_<name>)
-        static const std::set<std::string> specified{
-            "teq", "Teq", "streq", "and", "or"};
+        static const std::set<std::string> specified{"teq",
+                                                     "Teq",
+                                                     "streq",
+                                                     "and",
+                                                     "or",
+                                                     "not",
+                                                     "string_valid",
+                                                     "string_prefix_eq"};
         if (!specified.count(name))
         {
           leanUnsupported("the native operation " + name);
