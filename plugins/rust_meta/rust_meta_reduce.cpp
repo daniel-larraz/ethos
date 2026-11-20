@@ -2161,12 +2161,6 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
   {
     proof.why = "the cache of types";
   }
-  if (proof.why.empty() && loop && !proof.groups.empty())
-  {
-    // last: the emitter writes no proof of a round over groups yet, but
-    // a program that has another reason is told that one first
-    proof.why = "a loop whose cases are tried in groups";
-  }
   // Helpers are module items; emit them after the functions that call them.
   out << helpers.str();
   return out.str();
@@ -2437,7 +2431,10 @@ void RustMetaReduce::leanProofs(size_t numParts) const
                          bool body) {
       std::string sk = k == 0 ? "" : std::to_string(k);
       std::string pat = "⟨" + names(m.lo, m.hi) + "⟩";
-      return std::string(body ? "  body_group_step" : "  group_step") + " with "
+      // in a loop, a member answers the end of the loop or its next round
+      const std::string tac = std::string(body ? "body_group" : "group")
+                              + (p->loop ? "_round_step" : "_step");
+      return "  " + tac + " with "
              + m.name + "_spec n ih s" + sk + n.as + n.xs + " hinv" + sk
              + " h64 " + (k == 0 ? "hrem" : "(hG.rem hrem)") + n.reps + notStuck
              + "\n    as ⟨s" + std::to_string(k + 1) + ", hinv"
@@ -2453,9 +2450,22 @@ void RustMetaReduce::leanProofs(size_t numParts) const
     {
       const std::string& fn = g.name;
       o << "theorem " << fn << "_spec" << head << stuck << " :\n    " << fn
-        << " s" << n.as << post << "      | " << ok
-        << " (some t) =>\n        ∃ res, (∀ d, firstSome " << leaves(g.lo, g.hi)
-        << " d = res) ∧ Represents.rep s' t res\n      | " << ok << " none =>";
+        << " s" << n.as << post;
+      if (p->loop)
+      {
+        o << "      | " << ok << " (some (Next.Done t)) =>\n        ∃ res, (∀ d, "
+          << "firstSome " << leaves(g.lo, g.hi)
+          << " d = res) ∧ Represents.rep s' t res\n      | " << ok
+          << " (some (Next.Again arr)) =>\n        " << again
+          << " ∧\n          ∀ d, firstSome " << leaves(g.lo, g.hi) << " d = "
+          << n.lean << ys << "\n";
+      }
+      else
+      {
+        o << "      | " << ok << " (some t) =>\n        ∃ res, (∀ d, firstSome "
+          << leaves(g.lo, g.hi) << " d = res) ∧ Represents.rep s' t res\n";
+      }
+      o << "      | " << ok << " none =>";
       for (size_t c = g.lo; c < g.hi; ++c)
       {
         o << (c == g.lo ? " " : " ∧ ") << "EoCases." << leanName(p->name)
@@ -2534,8 +2544,9 @@ void RustMetaReduce::leanProofs(size_t numParts) const
         o << groupStep(m, 0, p->cases.size(), store, hn, true);
         store++;
       }
-      o << "  body_stuck hinv" << st() << " hG using" << hn
-        << noneFacts(0, p->cases.size()) << " in" << defs << splitting << "\n\n";
+      o << "  " << (p->loop ? "round_stuck" : "body_stuck") << " hinv" << st()
+        << " hG using" << hn << noneFacts(0, p->cases.size()) << " in" << defs
+        << splitting << "\n\n";
     }
     for (size_t c = 0; p->groups.empty() && c < p->cases.size(); ++c)
     {
