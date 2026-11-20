@@ -700,6 +700,24 @@ class RustMetaReduce::Emitter
            || std::find(lean.pure.begin(), lean.pure.end(), "hn_" + x)
                   != lean.pure.end();
   }
+  /** `s.apply(f, a)` and its line (`Store.apply_rep`). */
+  std::string leanApply(const std::string& f, const std::string& a)
+  {
+    if (!leanNotStuck(f) || !leanNotStuck(a))
+    {
+      // logos builds the application, the store gives the stuck term:
+      // the first finding of pathos's docs/proofs.md
+      leanUnsupported("an application of a term that may be stuck");
+    }
+    std::string st = leanStore(), inv = leanInv();
+    std::string v = val("s.apply(" + f + ", " + a + ")?");
+    lean.built.insert(v);
+    leanStoreStep("Store.apply_rep " + st + " " + ln(f) + " " + ln(a)
+                      + " _ _ " + inv + " h64 h_" + ln(f) + " h_" + ln(a)
+                      + " (by ns_tac) (by ns_tac)",
+                  v);
+    return v;
+  }
   /**
    * The lines of a call of the runtime on a slice of arguments `vs`, whose
    * specification `spec` takes the store, the slice and what it holds,
@@ -1711,35 +1729,34 @@ class RustMetaReduce::Emitter
     }
     if (k == Kind::FUNCTION_TYPE)
     {
-      leanUnsupported("a function type");
+      // `(-> T U)` is `((FunType T) U)`: the constant `$emb_FunType` (its
+      // generated `construct` lemma), then two applications, as an
+      // application term has (`Store.apply_rep`)
+      if (!leanHasCtorLemma("$emb_FunType"))
+      {
+        leanUnsupported("a function type");
+      }
       size_t n = t.getNumChildren();
       std::string tail = expr(t[n - 1]);
       for (size_t i = n - 1; i > 0; --i)
       {
         std::string a = expr(t[i - 1]);
+        std::string st = leanStore(), inv = leanInv();
         std::string h = val(named("$emb_FunType", ""));
-        std::string f = val("s.apply(" + h + ", " + a + ")?");
-        tail = val("s.apply(" + f + ", " + tail + ")?");
+        leanLine("step as ⟨e_" + h + ", he_" + h + "⟩");
+        leanStoreStep("CtorSpec." + ident("$emb_FunType") + ".construct " + st
+                          + " e_" + h + " (by rw [he_" + h
+                          + "]; exact empty_args) " + inv + " h64",
+                      h);
+        lean.built.insert(h);
+        tail = leanApply(leanApply(h, a), tail);
       }
       return tail;
     }
     if (k == Kind::APPLY && t.getNumChildren() == 2)
     {
       std::string f = expr(t[0]), a = expr(t[1]);
-      if (!leanNotStuck(f) || !leanNotStuck(a))
-      {
-        // logos builds the application, the store gives the stuck term:
-        // the first finding of pathos's docs/proofs.md
-        leanUnsupported("an application of a term that may be stuck");
-      }
-      std::string st = leanStore(), inv = leanInv();
-      std::string v = val("s.apply(" + f + ", " + a + ")?");
-      lean.built.insert(v);
-      leanStoreStep("Store.apply_rep " + st + " " + ln(f) + " " + ln(a)
-                        + " _ _ " + inv + " h64 h_" + ln(f) + " h_" + ln(a)
-                        + " (by ns_tac) (by ns_tac)",
-                    v);
-      return v;
+      return leanApply(f, a);
     }
     if (k == Kind::VARIABLE)
     {
