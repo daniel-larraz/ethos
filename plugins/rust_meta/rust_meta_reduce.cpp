@@ -40,22 +40,7 @@ RustMetaReduce::RustMetaReduce(State& s) : MetaReducePlugin(s)
 
 std::string RustMetaReduce::ident(const std::string& name)
 {
-  std::ostringstream out;
-  out << "eo_";
-  for (unsigned char c : name)
-  {
-    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-        || (c >= '0' && c <= '9'))
-    {
-      out << c;
-    }
-    else
-    {
-      out << '_' << std::hex << std::setw(2) << std::setfill('0')
-          << unsigned(c);
-    }
-  }
-  return out.str();
+  return rustIdent(name);
 }
 
 std::string RustMetaReduce::quote(const std::string& text)

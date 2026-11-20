@@ -287,6 +287,34 @@ class LeanMetaReduce : public MetaReducePlugin
    * are linearized: one function per case (see printCaseDefs).
    */
   std::stringstream d_caseDefs;
+  /**
+   * A constructor of a datatype of the embedding, as recorded by
+   * finalizeDecl for printEmbedding: its EO name, its Lean name, the Lean
+   * name of its datatype and those of its fields. A user operator of the
+   * signature is recorded with `userOp` (the Lean constructor of UserOp).
+   */
+  struct EmbedCtor
+  {
+    std::string sname;
+    std::string cname;
+    std::string type;
+    std::vector<std::string> fields;
+    bool userOp = false;
+    std::string unsupported;
+  };
+  std::vector<EmbedCtor> d_embedCtors;
+  /** Records the constructor `e` for printEmbedding. */
+  void recordEmbedCtor(const Expr& e,
+                       const std::string& sname,
+                       const std::string& cnamek,
+                       const std::string& cname,
+                       MetaKind tk);
+  /**
+   * The embedding of the checker's values in the store of the Rust checker
+   * that rust-meta compiles: per datatype `enc`, `dec`, `emb` and the
+   * proof that `dec (enc x) = some x` for embeddable `x`.
+   */
+  std::string printEmbedding() const;
   /** The programs as they were defined, in order, for printCaseDefs. */
   std::vector<std::pair<Expr, Expr>> d_rawProgs;
   /** Whether any generated definitions have been seen. */

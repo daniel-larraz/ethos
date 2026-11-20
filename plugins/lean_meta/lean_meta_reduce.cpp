@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <string>
 
@@ -1272,6 +1273,503 @@ void LeanMetaReduce::define(const std::string& name, const Expr& e)
   }
 }
 
+void LeanMetaReduce::recordEmbedCtor(const Expr& e,
+                                     const std::string& sname,
+                                     const std::string& cnamek,
+                                     const std::string& cname,
+                                     MetaKind tk)
+{
+  if (tk == MetaKind::SMT_BUILTIN || tk == MetaKind::PROOF
+      || tk == MetaKind::NONE)
+  {
+    return;
+  }
+  Expr c = e;
+  Expr ct = d_tc.getType(c);
+  EmbedCtor rec;
+  rec.sname = sname;
+  rec.cname = cname;
+  size_t uarity = 0;
+  if (tk == MetaKind::EUNOIA && isAtomicEo(c, cnamek, uarity))
+  {
+    rec.userOp = true;
+    rec.type = "UserOp";
+    if (uarity > 0)
+    {
+      rec.unsupported = "an indexed user operator";
+    }
+    d_embedCtors.push_back(rec);
+    return;
+  }
+  if (tk == MetaKind::SMT && isAtomicSmt(c, cnamek))
+  {
+    rec.type = "SmtTerm";
+    rec.unsupported = "an SMT theory operator";
+    d_embedCtors.push_back(rec);
+    return;
+  }
+  Attr attr = d_state.getAttributeKind(e.getValue());
+  Expr ret = ct;
+  size_t n = 0;
+  if (attr == Attr::OPAQUE && ct.getKind() == Kind::FUNCTION_TYPE)
+  {
+    n = ct.getNumChildren() - 1;
+    ret = ct[n];
+  }
+  std::stringstream rs;
+  if (!printMetaTypeKind(tk, rs))
+  {
+    rs.str("");
+    if (!printMetaType(ret, rs, tk))
+    {
+      return;
+    }
+  }
+  rec.type = rs.str();
+  for (size_t i = 0; i < n; i++)
+  {
+    Expr typ = ct[i];
+    if (ct[i].getKind() == Kind::QUOTE_TYPE)
+    {
+      Expr targ = ct[i][0];
+      typ = d_tc.getType(targ);
+    }
+    std::stringstream fs;
+    if (!printMetaType(typ, fs, tk))
+    {
+      fs << "Term";
+    }
+    rec.fields.push_back(fs.str());
+  }
+  d_embedCtors.push_back(rec);
+}
+
+namespace {
+/** The codec in PathosProofs.Store.Tree of a native type, or "". */
+std::string nativeCodec(const std::string& t)
+{
+  if (t == "native_Bool") return "Bool";
+  if (t == "native_Int" || t == "CIndex") return "Int";
+  if (t == "native_Nat") return "Nat";
+  if (t == "native_Rat") return "Rat";
+  if (t == "native_String") return "Str";
+  return "";
+}
+/** The Lean name of a datatype of the embedding, with its namespace. */
+std::string qualified(const std::string& t)
+{
+  return (t.compare(0, 3, "Smt") == 0 ? "Smtm." : "Eo.") + t;
+}
+}  // namespace
+
+std::string LeanMetaReduce::printEmbedding() const
+{
+  // How the Rust runtime stores a term of one of these constructors
+  // (Constructor::embedding in rust-meta's schema): the rest are nodes of
+  // the constructor over their fields.
+  const std::set<std::string> lits{"$emb_Boolean",
+                                   "$emb_Numeral",
+                                   "$emb_Rational",
+                                   "$emb_String",
+                                   "$emb_Binary"};
+  std::map<std::string, std::vector<const EmbedCtor*>> byType;
+  std::vector<const EmbedCtor*> userOps;
+  std::set<std::string> dropped;
+  std::map<std::string, std::string> why;
+  for (const EmbedCtor& c : d_embedCtors)
+  {
+    if (c.userOp)
+    {
+      userOps.push_back(&c);
+      if (!c.unsupported.empty())
+      {
+        dropped.insert("Term");
+        why["Term"] = c.unsupported;
+      }
+      continue;
+    }
+    byType[c.type].push_back(&c);
+    if (!c.unsupported.empty() && dropped.insert(c.type).second)
+    {
+      why[c.type] = c.unsupported;
+    }
+  }
+  // a datatype is embedded if each of its fields is a native with a codec
+  // or an embedded datatype
+  for (bool changed = true; changed;)
+  {
+    changed = false;
+    for (const auto& ty : byType)
+    {
+      if (dropped.count(ty.first))
+      {
+        continue;
+      }
+      for (const EmbedCtor* c : ty.second)
+      {
+        for (const std::string& f : c->fields)
+        {
+          bool ok = (c->sname == "$emb_UOp" && f == "UserOp")
+                    || !nativeCodec(f).empty()
+                    || (byType.count(f) && !dropped.count(f));
+          if (!ok && dropped.insert(ty.first).second)
+          {
+            why[ty.first] = "the field " + f + " of " + c->cname;
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+  std::vector<std::string> types;
+  for (const auto& ty : byType)
+  {
+    if (!dropped.count(ty.first))
+    {
+      types.push_back(ty.first);
+    }
+  }
+  // the datatypes that refer to each other, dependencies first (Tarjan)
+  std::map<std::string, size_t> index, low;
+  std::set<std::string> onStack;
+  std::vector<std::string> stack;
+  std::vector<std::vector<std::string>> sccs;
+  size_t counter = 0;
+  std::function<void(const std::string&)> visit = [&](const std::string& v) {
+    index[v] = low[v] = counter++;
+    stack.push_back(v);
+    onStack.insert(v);
+    std::set<std::string> succ;
+    for (const EmbedCtor* c : byType.at(v))
+    {
+      for (const std::string& f : c->fields)
+      {
+        if (byType.count(f) && !dropped.count(f))
+        {
+          succ.insert(f);
+        }
+      }
+    }
+    for (const std::string& w : succ)
+    {
+      if (!index.count(w))
+      {
+        visit(w);
+        low[v] = std::min(low[v], low[w]);
+      }
+      else if (onStack.count(w))
+      {
+        low[v] = std::min(low[v], index[w]);
+      }
+    }
+    if (low[v] == index[v])
+    {
+      std::vector<std::string> scc;
+      std::string w;
+      do
+      {
+        w = stack.back();
+        stack.pop_back();
+        onStack.erase(w);
+        scc.push_back(w);
+      } while (w != v);
+      std::sort(scc.begin(), scc.end());
+      sccs.push_back(scc);
+    }
+  };
+  for (const std::string& v : types)
+  {
+    if (!index.count(v))
+    {
+      visit(v);
+    }
+  }
+  std::ostringstream o;
+  o << "/-! Not embedded (a field or a constructor that has no encoding):\n";
+  for (const auto& w : why)
+  {
+    o << "- `" << w.first << "`: " << w.second << "\n";
+  }
+  o << "-/\n\n";
+  if (!dropped.count("Term"))
+  {
+    o << "/-- The constructor of the store for a user operator. -/\n"
+         "def uop : Eo.UserOp → schema.Constructor\n";
+    for (const EmbedCtor* u : userOps)
+    {
+      o << "  | Eo.UserOp." << u->cname << " => schema.Constructor."
+        << rustIdent(u->sname) << "\n";
+    }
+    o << "\n";
+  }
+  auto fieldEnc = [&](const std::string& f, const std::string& x) {
+    std::string n = nativeCodec(f);
+    return n.empty() ? "(enc_" + f + " " + x + ")"
+                     : "(Tree.enc" + n + " " + x + ")";
+  };
+  auto fieldDec = [&](const std::string& f) {
+    std::string n = nativeCodec(f);
+    return n.empty() ? "dec_" + f : "Tree.dec" + n;
+  };
+  auto fieldOk = [&](const std::string& f, const std::string& x) {
+    std::string n = nativeCodec(f);
+    return n.empty() ? "emb_" + f + " " + x : "Tree.ok" + n + " " + x;
+  };
+  auto fieldLemma =
+      [&](const std::string& f, const std::string& x, const std::string& h) {
+        std::string n = nativeCodec(f);
+        return n.empty() ? "dec_enc_" + f + " " + x + " " + h
+                         : "Tree.dec_enc" + n + " " + x + " " + h;
+      };
+  auto head = [&](const EmbedCtor* c, const std::string& q) {
+    std::string s = q + "." + c->cname;
+    for (size_t i = 0; i < c->fields.size(); i++)
+    {
+      s += " x" + std::to_string(i);
+    }
+    return s;
+  };
+  for (const std::vector<std::string>& scc : sccs)
+  {
+    // enc
+    o << "mutual\n";
+    for (const std::string& ty : scc)
+    {
+      std::string q = qualified(ty);
+      o << "/-- The tree of the store that a `" << ty
+        << "` is stored as. -/\ndef enc_" << ty << " : " << q << " → Tree\n";
+      for (const EmbedCtor* c : byType.at(ty))
+      {
+        o << "  | " << head(c, q) << " => ";
+        if (c->sname == "$emb_Stuck")
+        {
+          o << "Tree.stuck";
+        }
+        else if (c->sname == "$emb_Apply")
+        {
+          o << "Tree.apply " << fieldEnc(c->fields[0], "x0") << " "
+            << fieldEnc(c->fields[1], "x1");
+        }
+        else if (c->sname == "$emb_UOp")
+        {
+          o << "Tree.node (uop x0) []";
+        }
+        else if (c->sname == "$emb_Boolean")
+        {
+          o << "Tree.lit (lit.Lit.Boolean x0)";
+        }
+        else if (c->sname == "$emb_Numeral")
+        {
+          o << "Tree.lit (lit.Lit.Numeral (num.Integer.ofInt x0))";
+        }
+        else if (c->sname == "$emb_Rational")
+        {
+          o << "Tree.lit (lit.Lit.Rational (num.Rational.ofRat x0))";
+        }
+        else if (c->sname == "$emb_String")
+        {
+          o << "Tree.lit (lit.Lit.Str (Tree.strOf x0))";
+        }
+        else if (c->sname == "$emb_Binary")
+        {
+          o << "Tree.lit (lit.Lit.Binary (Tree.bvOf x0 x1))";
+        }
+        else
+        {
+          o << "Tree.node schema.Constructor." << rustIdent(c->sname) << " [";
+          for (size_t i = 0; i < c->fields.size(); i++)
+          {
+            o << (i == 0 ? "" : ", ")
+              << fieldEnc(c->fields[i], "x" + std::to_string(i));
+          }
+          o << "]";
+        }
+        o << "\n";
+      }
+    }
+    o << "end\n\n";
+    // dec
+    o << "mutual\n";
+    for (const std::string& ty : scc)
+    {
+      std::string q = qualified(ty);
+      o << "/-- The `" << ty << "` that a tree stands for. -/\ndef dec_" << ty
+        << " : Tree → Option " << q << "\n";
+      for (const EmbedCtor* c : byType.at(ty))
+      {
+        std::string k = q + "." + c->cname;
+        if (c->sname == "$emb_Stuck")
+        {
+          o << "  | Tree.stuck => some " << k << "\n";
+        }
+        else if (c->sname == "$emb_Apply")
+        {
+          o << "  | Tree.apply t0 t1 => do\n    let x0 ← "
+            << fieldDec(c->fields[0]) << " t0\n    let x1 ← "
+            << fieldDec(c->fields[1]) << " t1\n    some (" << k << " x0 x1)\n";
+        }
+        else if (c->sname == "$emb_UOp")
+        {
+          for (const EmbedCtor* u : userOps)
+          {
+            o << "  | Tree.node schema.Constructor." << rustIdent(u->sname)
+              << " [] => some (" << k << " Eo.UserOp." << u->cname << ")\n";
+          }
+        }
+        else if (c->sname == "$emb_Boolean")
+        {
+          o << "  | Tree.lit (lit.Lit.Boolean b) => some (" << k << " b)\n";
+        }
+        else if (c->sname == "$emb_Numeral")
+        {
+          o << "  | Tree.lit (lit.Lit.Numeral i) => some (" << k
+            << " i.toInt)\n";
+        }
+        else if (c->sname == "$emb_Rational")
+        {
+          o << "  | Tree.lit (lit.Lit.Rational r) => some (" << k
+            << " r.toRat)\n";
+        }
+        else if (c->sname == "$emb_String")
+        {
+          o << "  | Tree.lit (lit.Lit.Str v) => some (" << k
+            << " (Tree.strTo v))\n";
+        }
+        else if (c->sname == "$emb_Binary")
+        {
+          o << "  | Tree.lit (lit.Lit.Binary v) => some (" << k
+            << " (Tree.bvW v) (Tree.bvV v))\n";
+        }
+        else
+        {
+          o << "  | Tree.node schema.Constructor." << rustIdent(c->sname)
+            << " [";
+          for (size_t i = 0; i < c->fields.size(); i++)
+          {
+            o << (i == 0 ? "" : ", ") << "t" << i;
+          }
+          o << "] =>";
+          if (c->fields.empty())
+          {
+            o << " some " << k << "\n";
+            continue;
+          }
+          o << " do\n";
+          for (size_t i = 0; i < c->fields.size(); i++)
+          {
+            o << "    let x" << i << " ← " << fieldDec(c->fields[i]) << " t"
+              << i << "\n";
+          }
+          o << "    some (" << head(c, q) << ")\n";
+        }
+      }
+      o << "  | _ => none\n";
+    }
+    o << "end\n\n";
+    // emb
+    o << "mutual\n";
+    for (const std::string& ty : scc)
+    {
+      std::string q = qualified(ty);
+      o << "/-- A `" << ty
+        << "` that the store can hold: its natives fit the runtime's. -/\n"
+           "def emb_"
+        << ty << " : " << q << " → Prop\n";
+      for (const EmbedCtor* c : byType.at(ty))
+      {
+        o << "  | " << head(c, q) << " => ";
+        if (c->sname == "$emb_String")
+        {
+          o << "Tree.okStr x0";
+        }
+        else if (c->sname == "$emb_Binary")
+        {
+          o << "Tree.okBv x0 x1";
+        }
+        else if (lits.count(c->sname) || c->sname == "$emb_UOp"
+                 || c->fields.empty())
+        {
+          o << "True";
+        }
+        else
+        {
+          for (size_t i = 0; i < c->fields.size(); i++)
+          {
+            o << (i == 0 ? "" : " ∧ ")
+              << fieldOk(c->fields[i], "x" + std::to_string(i));
+          }
+        }
+        o << "\n";
+      }
+    }
+    o << "end\n\n";
+    // dec (enc x) = some x
+    o << "mutual\n";
+    for (const std::string& ty : scc)
+    {
+      std::string q = qualified(ty);
+      o << "theorem dec_enc_" << ty << " : (x : " << q << ") → emb_" << ty
+        << " x → dec_" << ty << " (enc_" << ty << " x) = some x\n";
+      for (const EmbedCtor* c : byType.at(ty))
+      {
+        o << "  | " << head(c, q) << ", h => by\n";
+        std::string lemmas;
+        if (c->sname == "$emb_UOp")
+        {
+          o << "    cases x0 <;> simp [enc_" << ty << ", dec_" << ty
+            << ", uop]\n";
+          continue;
+        }
+        if (c->sname == "$emb_String")
+        {
+          lemmas = ", Tree.strTo_strOf x0 h";
+        }
+        else if (c->sname == "$emb_Binary")
+        {
+          lemmas = ", Tree.bvW_bvOf x0 x1 h, Tree.bvV_bvOf x0 x1 h";
+        }
+        else if (c->sname == "$emb_Numeral")
+        {
+          lemmas = ", num.Integer.toInt_ofInt";
+        }
+        else if (c->sname == "$emb_Rational")
+        {
+          lemmas = ", num.Rational.toRat_ofRat";
+        }
+        else if (!lits.count(c->sname))
+        {
+          size_t k = c->fields.size();
+          if (k > 0)
+          {
+            o << "    simp only [emb_" << ty << "] at h\n";
+          }
+          if (k == 1)
+          {
+            o << "    have h0 := h\n";
+          }
+          else if (k > 1)
+          {
+            o << "    obtain ⟨";
+            for (size_t i = 0; i < k; i++)
+            {
+              o << (i == 0 ? "h" : ", h") << i;
+            }
+            o << "⟩ := h\n";
+          }
+          for (size_t i = 0; i < k; i++)
+          {
+            std::string s = std::to_string(i);
+            lemmas += ", " + fieldLemma(c->fields[i], "x" + s, "h" + s);
+          }
+        }
+        o << "    simp [enc_" << ty << ", dec_" << ty << lemmas << "]\n";
+      }
+    }
+    o << "end\n\n";
+  }
+  return o.str();
+}
+
 void LeanMetaReduce::finalizeDecl(const Expr& e)
 {
   // A declaration is a case of the datatypes of the embedding, and those stand
@@ -1289,6 +1787,19 @@ void LeanMetaReduce::finalizeDecl(const Expr& e)
   std::string sname = ss.str();
   if (sname == "$eo_pf")
   {
+    // the proof of a formula: a node over it, written by hand in the
+    // templates (Proof.pf); Proof.Stuck is the stuck term
+    EmbedCtor pf;
+    pf.sname = sname;
+    pf.cname = "pf";
+    pf.type = "Proof";
+    pf.fields = {"Term"};
+    d_embedCtors.push_back(pf);
+    EmbedCtor stuck;
+    stuck.sname = "$emb_Stuck";
+    stuck.cname = "Stuck";
+    stuck.type = "Proof";
+    d_embedCtors.push_back(stuck);
     return;
   }
   std::stringstream* out = nullptr;
@@ -1298,6 +1809,7 @@ void LeanMetaReduce::finalizeDecl(const Expr& e)
   // `$eoo_` names carry the overload identity. Keep them mangled so distinct
   // operators such as unary and binary `-` remain distinct Lean constructors.
   std::string cname = cleanSmtId(cnamek);
+  recordEmbedCtor(e, sname, cnamek, cname, tk);
   if (tk == MetaKind::EUNOIA)
   {
     out = &d_embedTermDt;
@@ -2251,6 +2763,9 @@ void LeanMetaReduce::finalizeSpec()
   emitResourceFile("plugins/lean_meta/lean_meta_case_defs.lean",
                    "plugins/lean_meta/lean_meta_case_defs_gen.lean",
                    {{"$LEAN_CASE_DEFS$", d_caseDefs.str()}});
+  emitResourceFile("plugins/lean_meta/lean_meta_embed.lean",
+                   "plugins/lean_meta/lean_meta_embed_gen.lean",
+                   {{"$LEAN_EMBED$", printEmbedding()}});
 }
 
 void LeanMetaReduce::finalizeLemmas()
