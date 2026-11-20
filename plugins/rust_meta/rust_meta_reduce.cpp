@@ -739,6 +739,19 @@ class RustMetaReduce::Emitter
   {
     return "else " + leanInv() + " hG in " + lean.caseDef;
   }
+  /** `unapply` of `value` into the handles `f` and `a`. */
+  void leanUnapply(const std::string& value,
+                   const std::string& f,
+                   const std::string& a)
+  {
+    leanLine("pat_unapply h_" + ln(value) + " as ⟨" + f + ", " + a + ", x_" + f
+             + ", x_" + a + ", h_" + f + ", h_" + a + ", hn_" + f + ", hn_" + a
+             + "⟩ using " + leanInv() + " " + leanElse());
+    lean.facts.push_back("h_" + f);
+    lean.facts.push_back("h_" + a);
+    lean.pure.push_back("hn_" + f);
+    lean.pure.push_back("hn_" + a);
+  }
   /**
    * An operation on the store whose specification is `spec` (a Lean term)
    * and whose result is the variable `v`.
@@ -1598,20 +1611,25 @@ class RustMetaReduce::Emitter
     }
     if (k == Kind::FUNCTION_TYPE && t.getNumChildren() == 2)
     {
-      leanUnsupported("a function type in a pattern");
+      // `(-> T U)` is `(FunType T) U` as applications, whose head the store
+      // keeps as the node of `$emb_FunType`
       std::string outer = part("s.unapply(" + value + ")?");
       std::string f = fresh(), r = fresh();
       o << "let Some((" << f << ", " << r << ")) = " << outer << " else" << fail
         << ";\n"
         << CUT;
+      leanUnapply(value, f, r);
       std::string inner = part("s.unapply(" + f + ")?");
       std::string op = fresh(), l = fresh();
       o << "let Some((" << op << ", " << l << ")) = " << inner << " else"
         << fail << ";\n"
         << CUT;
+      leanUnapply(f, op, l);
       std::string fun = part("s.is_node(" + op + ", "
                             + m.constructorOption("$emb_FunType") + ")?");
       o << "if !" << fun << fail << CUT;
+      leanLine("pat_is_node h_" + ln(op) + " : x_" + ln(op)
+               + " is Eo.Term.FunType by Embed.inv_Term_FunType " + leanElse());
       pattern(t[0], l);
       pattern(t[1], r);
       return;
@@ -1623,14 +1641,7 @@ class RustMetaReduce::Emitter
       o << "let Some((" << f << ", " << a << ")) = " << parts << " else" << fail
         << ";\n"
         << CUT;
-      leanLine("pat_unapply h_" + ln(value) + " as ⟨" + f + ", "
-                           + a + ", x_" + f + ", x_" + a + ", h_" + f + ", h_"
-                           + a + ", hn_" + f + ", hn_" + a + "⟩ using "
-                           + leanInv() + " " + leanElse());
-      lean.facts.push_back("h_" + f);
-      lean.facts.push_back("h_" + a);
-      lean.pure.push_back("hn_" + f);
-      lean.pure.push_back("hn_" + a);
+      leanUnapply(value, f, a);
       pattern(t[0], f);
       pattern(t[1], a);
       return;
