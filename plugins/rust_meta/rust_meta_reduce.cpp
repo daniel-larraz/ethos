@@ -4,6 +4,8 @@
  ******************************************************************************/
 #include "rust_meta_reduce.h"
 
+#include <algorithm>
+
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -1531,6 +1533,29 @@ class RustMetaReduce::Emitter
                             + "#u32 (" + name + ") (by scalar_tac) " + inv
                             + " h64",
                         v);
+          return v;
+        }
+        if (t.getNumChildren() == 2 && name.size() >= 2 && name.front() == '"'
+            && name.back() == '"'
+            && name.find_first_of("\\\"", 1) == name.size() - 1
+            && std::all_of(name.begin(), name.end(), [](char c) {
+                 return c >= ' ' && c <= '~';
+               }))
+        {
+          // a string constant, a value (`raw` of the literal of its code
+          // points): pathos proves it stands for logos's string literal
+          // (Runtime/StringLits.lean); the text is printable ASCII without
+          // escapes, so it reads the same in Lean
+          std::string st = leanStore(), inv = leanInv();
+          std::string v = val(native(name, 0, ""));
+          // the array of code points, then the vector of them
+          leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
+          leanLine("simp only [eostring.EoString.from_code_points, Std.bind_ok]");
+          leanStoreStep("Store.raw_str_vec_spec " + st + " _ _ rfl " + inv + " h64", v);
+          leanLine("replace h_" + ln(v) + " := Represents.rep_of_eq h_" + ln(v)
+                   + " (y := SmtEval.native_string_lit " + name
+                   + ") (by simp [alloc.slice.Slice.into_vec, alloc.vec.Vec.val, he_" + v
+                   + "]; decide)");
           return v;
         }
         if (t.getNumChildren() == 2 && name == "nat.zero")
