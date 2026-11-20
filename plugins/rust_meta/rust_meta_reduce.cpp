@@ -1423,13 +1423,17 @@ class RustMetaReduce::Emitter
                                              : getName(t);
       std::string st = leanStore(), inv = leanInv();
       std::string v = val("s.construct(" + ctor(n) + ", &[])?");
-      if (!leanHasCtorLemma(n))
+      // the stuck term is not a node: `construct` gives handle 0
+      const bool stuck = n == "$emb_Stuck";
+      if (!stuck && !leanHasCtorLemma(n))
       {
         leanUnsupported("the constructor " + n
                         + ", which is not stored as a node (no lemma yet)");
       }
       leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
-      leanStoreStep("CtorSpec." + ident(n) + ".construct " + st + " e_" + v
+      leanStoreStep((stuck ? std::string("Store.construct_stuck_spec ")
+                           : "CtorSpec." + ident(n) + ".construct ")
+                        + st + " e_" + v
                         + " (by rw [he_" + v + "]; exact empty_args) " + inv
                         + " h64",
                     v);
