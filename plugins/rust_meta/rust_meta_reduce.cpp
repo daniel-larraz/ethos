@@ -1402,7 +1402,7 @@ class RustMetaReduce::Emitter
       leanStoreStep("h_req_" + v, v);
       return v;
     }
-    if (k == Kind::EVAL_EQ)
+    if (k == Kind::EVAL_EQ || k == Kind::EVAL_LENGTH)
     {
       std::vector<std::string> vs;
       std::string as;
@@ -1414,7 +1414,8 @@ class RustMetaReduce::Emitter
       std::string st = leanStore(), inv = leanInv();
       std::string v =
           val("s.builtin_core(EvalOp::" + evalOp(k) + ", &[" + as + "])?");
-      leanArgsStep("Store.builtin_spec_eq", st, inv, vs, v);
+      leanArgsStep(k == Kind::EVAL_EQ ? "Store.builtin_spec_eq" : "Store.builtin_spec_len", st,
+                   inv, vs, v);
       return v;
     }
     std::string as = args(t, start);
@@ -1648,7 +1649,7 @@ class RustMetaReduce::Emitter
       // `eo::ite` is a conditional (see `conditional`), `eo::requires` a
       // function of its own, and `eo::eq` has its spec; the others have none
       if (k != Kind::EVAL_REQUIRES && k != Kind::EVAL_EQ
-          && k != Kind::EVAL_IF_THEN_ELSE)
+          && k != Kind::EVAL_IF_THEN_ELSE && k != Kind::EVAL_LENGTH)
       {
         leanUnsupported("a builtin operator");
       }
