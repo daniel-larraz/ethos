@@ -1662,12 +1662,27 @@ class RustMetaReduce::Emitter
         o << "let " << fields.back() << " = fields[" << (i - start) << "];\n";
       }
       o << CUT;
-      if (data && !leanHasCtorLemma(n))
+      if (data && n == "$emb_Boolean" && fields.size() == 1)
+      {
+        // a Boolean literal: destruct stores a native copy of its value
+        // (pathos's Runtime/Literals.lean), so the store changes
+        std::string st = leanStore(), inv = leanInv();
+        std::string before = words(lean.facts);
+        lean.store++;
+        const std::string& f = fields[0];
+        leanLine("pat_destruct_lit Store.destruct_boolean_spec " + st + " "
+                 + ln(value) + " h_" + ln(value) + " " + inv + " h64 as ⟨" + f
+                 + ", x_" + f + ", h_" + f + "⟩ storing ⟨" + leanStore() + ", "
+                 + leanInv() + "⟩ growing hG carrying" + before + " in "
+                 + lean.caseDef);
+        lean.facts.push_back("h_" + f);
+      }
+      else if (data && !leanHasCtorLemma(n))
       {
         leanUnsupported("the constructor " + n
                         + " in a pattern, which is not stored as a node");
       }
-      if (data)
+      else if (data)
       {
         std::string line = "pat_destruct CtorSpec." + ident(n) + ".destruct h_"
                            + ln(value) + " as";
