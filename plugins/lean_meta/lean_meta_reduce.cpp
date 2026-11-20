@@ -1856,6 +1856,16 @@ std::string LeanMetaReduce::printEmbedding() const
       }
     }
     o << "end\n\n";
+    for (const std::string& ty : scc)
+    {
+      std::string q = qualified(ty);
+      o << "instance : Embedded " << q << " := ⟨enc_" << ty << ", dec_" << ty
+        << ", emb_" << ty << ", dec_enc_" << ty << "⟩\n\n"
+        << "@[simp] theorem embedded_enc_" << ty << " (x : " << q
+        << ") : Embedded.enc x = enc_" << ty << " x := rfl\n"
+        << "@[simp] theorem embedded_emb_" << ty << " (x : " << q
+        << ") : Embedded.emb x = emb_" << ty << " x := rfl\n\n";
+    }
   }
   return o.str();
 }
