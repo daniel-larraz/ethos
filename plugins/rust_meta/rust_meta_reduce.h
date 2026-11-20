@@ -99,6 +99,11 @@ class RustMetaReduce : public MetaReducePlugin
     size_t nargs = 0;
     /** The arguments the body tests for the stuck term, in order. */
     std::vector<size_t> stuck;
+    /** What lemma C gives where no case applies: the stuck value
+     * (`HasStuck.stuck`) for terms, proofs and native Booleans, otherwise
+     * `default`, which the body never returns: its cases cover every
+     * value (a last case that matches anything, or one per constructor). */
+    std::string noCase = "HasStuck.stuck";
     std::vector<Case> cases;
     bool loop = false;
     /** The number of its cache of results, or empty. */

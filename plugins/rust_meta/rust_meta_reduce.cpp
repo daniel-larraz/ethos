@@ -2098,8 +2098,11 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
   }
   if (proof.why.empty() && cases)
   {
-    // the proofs have the stuck value of a type (HasStuck, what a body
-    // gives when no case applies) for terms, proofs and native Booleans
+    // where no case applies, the body gives the stuck term; lemma C gives
+    // the stuck value (HasStuck) for terms, proofs and native Booleans, and
+    // otherwise `default` (every logos type is Inhabited): logos writes no
+    // default case for such a type, so its cases cover every value and the
+    // proof shows that the body never gets there
     Expr rt = ty[nargs];
     MetaKind rk = getTypeMetaKindFor(rt, MetaKind::EUNOIA, true);
     std::ostringstream rs;
@@ -2107,9 +2110,7 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     if (rk != MetaKind::EUNOIA && rk != MetaKind::PROOF
         && rs.str() != "($native_type_0 \"Bool\")")
     {
-      proof.why =
-          "it returns a value of a type that has no stuck value in the "
-          "proofs yet (HasStuck)";
+      proof.noCase = "default";
     }
   }
   if (proof.why.empty() && cases)
@@ -2469,7 +2470,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
     {
       o << "if x_a" << i << " = Eo.Term.Stuck then HasStuck.stuck else ";
     }
-    o << "firstSome [" << cds << "] HasStuck.stuck) := by\n  conv => lhs; unfold "
+    o << "firstSome [" << cds << "] " << p->noCase << ") := by\n  conv => lhs; unfold "
       << n.lean << "\n  unfold" << defs
       << "\n  logos_eq\n\n";
     // the body: for a loop, a round of it
@@ -2493,6 +2494,10 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       << "\n  have hG := Store.Grows.refl s\n";
     size_t store = 0;
     auto st = [&]() { return store == 0 ? "" : std::to_string(store); };
+    // where lemma C gives `default`, the proof that no case fails to apply
+    // may split on the arguments
+    const std::string splitting =
+        p->noCase == "default" ? " splitting" + n.xs : "";
     if (p->loop)
     {
       store++;
@@ -2513,7 +2518,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
         store++;
       }
       o << "  body_stuck hinv" << st() << " hG using" << hn
-        << noneFacts(0, p->cases.size()) << " in" << defs << "\n\n";
+        << noneFacts(0, p->cases.size()) << " in" << defs << splitting << "\n\n";
     }
     for (size_t c = 0; p->groups.empty() && c < p->cases.size(); ++c)
     {
@@ -2528,7 +2533,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
     if (p->groups.empty())
     {
       o << "  " << (p->loop ? "round_stuck" : "body_stuck") << " hinv" << st()
-        << " hG using" << facts << " in" << defs << "\n\n";
+        << " hG using" << facts << " in" << defs << splitting << "\n\n";
     }
     const std::string result = "      | " + ok + " t => Represents.rep s' t ("
                                + n.lean + n.xs + ")\n      | " + err
