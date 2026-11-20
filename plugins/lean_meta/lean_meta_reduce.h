@@ -314,7 +314,7 @@ class LeanMetaReduce : public MetaReducePlugin
    * that rust-meta compiles: per datatype `enc`, `dec`, `emb` and the
    * proof that `dec (enc x) = some x` for embeddable `x`.
    */
-  std::string printEmbedding() const;
+  std::string printEmbedding(std::string& ctorSpecs) const;
   /** The programs as they were defined, in order, for printCaseDefs. */
   std::vector<std::pair<Expr, Expr>> d_rawProgs;
   /** Whether any generated definitions have been seen. */

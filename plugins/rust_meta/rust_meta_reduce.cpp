@@ -605,6 +605,8 @@ class RustMetaReduce::Emitter
     size_t store = 0;
     std::vector<std::string> facts;
     std::vector<std::string> pure;
+    /** The variables whose terms the code built: never the stuck term. */
+    std::set<std::string> built;
     std::string why;
     /** The function of lean-meta's case file for the case being written. */
     std::string caseDef;
@@ -638,22 +640,58 @@ class RustMetaReduce::Emitter
     return lean.store == 0 ? "hrem" : "(hG.rem hrem)";
   }
   /**
-   * The constructors whose lemmas the proofs can name (pathos,
-   * proofs/PathosProofs/Runtime/Ctors.lean, written by hand): until the
-   * lemmas are generated with the constructors, a program that builds or
-   * takes apart another constructor has no proof.
+   * Whether the proofs have the lemmas of the constructor `name`
+   * (`CtorSpec.<ident>.construct` and `.destruct`), which lean-meta writes
+   * with the embedding (pathos's MiniCtors.lean): every constructor the
+   * runtime stores as a node over its fields (Embedding::Data in the
+   * schema, which is user operators too), of a datatype that the embedding
+   * has. lean-meta leaves out the model's datatypes (values, and the maps,
+   * sequences and regular languages over values: their reals have no
+   * encoding), and the list at the head of its MiniEmbed is the authority:
+   * a constructor named here that has no lemma fails the Lean build.
    */
-  static const std::set<std::string>& leanCtorLemmas()
+  bool leanHasCtorLemma(const std::string& name) const
   {
-    static const std::set<std::string> have{
-        "= construct",
-        "not construct",
-        "and construct",
-        "$emb_s.nil construct",
-        "$eo_pf destruct",
-        "$emb_s.cons destruct",
-        "$emb_so.assume_push destruct"};
-    return have;
+    for (const char* special : {"$emb_Stuck",
+                                "$emb_Apply",
+                                "$emb_Boolean",
+                                "$emb_Numeral",
+                                "$emb_Rational",
+                                "$emb_String",
+                                "$emb_Binary",
+                                "$emb_Var"})
+    {
+      if (name == special)
+      {
+        return false;
+      }
+    }
+    if (starts(name, "$emb_UOp"))
+    {
+      return false;
+    }
+    if (starts(name, "$emb_"))
+    {
+      std::string prefix = name.substr(5, name.find('.') - 5);
+      auto it = m.d_prefixToMetaKind.find(prefix);
+      if (prefix == "rsm"
+          || (it != m.d_prefixToMetaKind.end()
+              && (it->second == MetaKind::SMT_VALUE
+                  || it->second == MetaKind::SMT_MAP
+                  || it->second == MetaKind::SMT_SEQ)))
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+  /** Whether the proof has it that the term of `v` is not stuck. */
+  bool leanNotStuck(const std::string& v) const
+  {
+    std::string x = ln(v);
+    return lean.built.count(x)
+           || std::find(lean.pure.begin(), lean.pure.end(), "hn_" + x)
+                  != lean.pure.end();
   }
   void leanLine(const std::string& line)
   {
@@ -709,6 +747,7 @@ class RustMetaReduce::Emitter
     lean.store = part.lean.store;
     lean.facts = part.lean.facts;
     lean.pure = part.lean.pure;
+    lean.built = part.lean.built;
     lean.unfolds = part.lean.unfolds;
     lean.calls = part.lean.calls;
     lean.alias = part.lean.alias;
@@ -1223,6 +1262,7 @@ class RustMetaReduce::Emitter
       std::string v = val("s.literal(" + literal(t) + ")?");
       if (k == Kind::BOOLEAN)
       {
+        lean.built.insert(v);
         leanStoreStep(std::string("Store.literal_boolean_spec ") + st
                           + (t.getValue()->asLiteral()->d_bool ? " true "
                                                                : " false ")
@@ -1251,15 +1291,17 @@ class RustMetaReduce::Emitter
                                              : getName(t);
       std::string st = leanStore(), inv = leanInv();
       std::string v = val("s.construct(" + ctor(n) + ", &[])?");
-      if (!leanCtorLemmas().count(n + " construct"))
+      if (!leanHasCtorLemma(n))
       {
-        leanUnsupported("the constructor " + n + ", which has no lemma yet");
+        leanUnsupported("the constructor " + n
+                        + ", which is not stored as a node (no lemma yet)");
       }
       leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
       leanStoreStep("CtorSpec." + ident(n) + ".construct " + st + " e_" + v
                         + " (by rw [he_" + v + "]; exact empty_args) " + inv
                         + " h64",
                     v);
+      lean.built.insert(v);
       return v;
     }
     if (k == Kind::APPLY_OPAQUE)
@@ -1285,9 +1327,32 @@ class RustMetaReduce::Emitter
         std::string as = args(t, 2);
         return val(native(name, t.getNumChildren() - 2, as));
       }
-      leanUnsupported("a constructor with arguments");
-      std::string as = args(t, 1);
-      return val("s.construct(" + ctor(n) + ", &[" + as + "])?");
+      if (!leanHasCtorLemma(n))
+      {
+        leanUnsupported("the constructor " + n
+                        + " with arguments, which is not stored as a node");
+      }
+      std::vector<std::string> vs;
+      std::string as;
+      for (size_t i = 1; i < t.getNumChildren(); ++i)
+      {
+        vs.push_back(expr(t[i]));
+        as += (i == 1 ? "" : ", ") + vs.back();
+      }
+      std::string st = leanStore(), inv = leanInv();
+      std::string v = val("s.construct(" + ctor(n) + ", &[" + as + "])?");
+      std::string reps;
+      for (const std::string& x : vs)
+      {
+        reps += " h_" + ln(x);
+      }
+      leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
+      leanStoreStep("CtorSpec." + ident(n) + ".construct " + st + " e_" + v
+                        + " (by rw [he_" + v + "]; rfl)" + reps + " " + inv
+                        + " h64",
+                    v);
+      lean.built.insert(v);
+      return v;
     }
     if (k == Kind::APPLY && t[0].getKind() == Kind::PROGRAM_CONST)
     {
@@ -1346,8 +1411,15 @@ class RustMetaReduce::Emitter
     if (k == Kind::APPLY && t.getNumChildren() == 2)
     {
       std::string f = expr(t[0]), a = expr(t[1]);
+      if (!leanNotStuck(f) || !leanNotStuck(a))
+      {
+        // logos builds the application, the store gives the stuck term:
+        // the first finding of pathos's docs/proofs.md
+        leanUnsupported("an application of a term that may be stuck");
+      }
       std::string st = leanStore(), inv = leanInv();
       std::string v = val("s.apply(" + f + ", " + a + ")?");
+      lean.built.insert(v);
       leanStoreStep("Store.apply_rep " + st + " " + ln(f) + " " + ln(a)
                         + " _ _ " + inv + " h64 h_" + ln(f) + " h_" + ln(a)
                         + " (by ns_tac) (by ns_tac)",
@@ -1446,10 +1518,10 @@ class RustMetaReduce::Emitter
         o << "let " << fields.back() << " = fields[" << (i - start) << "];\n";
       }
       o << CUT;
-      if (data && !leanCtorLemmas().count(n + " destruct"))
+      if (data && !leanHasCtorLemma(n))
       {
         leanUnsupported("the constructor " + n
-                        + " in a pattern, which has no lemma yet");
+                        + " in a pattern, which is not stored as a node");
       }
       if (data)
       {
@@ -1846,6 +1918,22 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     if (proof.why.empty() && !e.lean.why.empty())
     {
       proof.why = "case " + std::to_string(c) + " has " + e.lean.why;
+    }
+  }
+  if (proof.why.empty() && cases)
+  {
+    // the proofs have the stuck value of a type (HasStuck, what a body
+    // gives when no case applies) for terms, proofs and native Booleans
+    Expr rt = ty[nargs];
+    MetaKind rk = getTypeMetaKindFor(rt, MetaKind::EUNOIA, true);
+    std::ostringstream rs;
+    rs << rt;
+    if (rk != MetaKind::EUNOIA && rk != MetaKind::PROOF
+        && rs.str() != "($native_type_0 \"Bool\")")
+    {
+      proof.why =
+          "it returns a value of a type that has no stuck value in the "
+          "proofs yet (HasStuck)";
     }
   }
   proof.loop = loop;

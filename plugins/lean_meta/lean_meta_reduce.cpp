@@ -1362,7 +1362,7 @@ std::string qualified(const std::string& t)
 }
 }  // namespace
 
-std::string LeanMetaReduce::printEmbedding() const
+std::string LeanMetaReduce::printEmbedding(std::string& ctorSpecs) const
 {
   // How the Rust runtime stores a term of one of these constructors
   // (Constructor::embedding in rust-meta's schema): the rest are nodes of
@@ -1867,6 +1867,181 @@ std::string LeanMetaReduce::printEmbedding() const
         << ") : Embedded.emb x = emb_" << ty << " x := rfl\n\n";
     }
   }
+  // What `construct` and `destruct` do with each data constructor, in the
+  // form the generated proofs name (CtorSpec.<the Rust name>), from
+  // Store.construct_holds and Store.destruct_holds (pathos's
+  // Runtime/Node.lean) and the inversions above.
+  std::ostringstream cs;
+  auto fieldType = [&](const std::string& f) {
+    if (f == "CIndex")
+    {
+      return std::string("Eo.CIndex");
+    }
+    return nativeCodec(f).empty() ? qualified(f) : "SmtEval." + f;
+  };
+  auto emitConstruct = [&](const std::string& id,
+                           const std::string& ty,
+                           const std::string& value,
+                           const std::vector<std::string>& fields,
+                           const std::string& unfold) {
+    size_t k = fields.size();
+    std::string binders, as, hs, xs, list, holds = "HoldsList.nil", embs;
+    for (size_t i = 0; i < k; i++)
+    {
+      std::string s = std::to_string(i);
+      binders +=
+          " {a" + s + " : Term} {x" + s + " : " + fieldType(fields[i]) + "}";
+      as += (i == 0 ? "a" : ", a") + s;
+      hs += " (h" + s + " : Represents.rep s a" + s + " x" + s + ")";
+      list += (i == 0 ? "" : ", ") + std::string("Embedded.enc x") + s;
+      embs += (i == 0 ? "h" : ", h") + s + ".2";
+    }
+    for (size_t i = k; i > 0; i--)
+    {
+      holds = "(HoldsList.cons _ _ _ _ h" + std::to_string(i - 1) + ".1 "
+              + holds + ")";
+    }
+    cs << "theorem CtorSpec." << id
+       << ".construct (s : Store) (args : Slice Term)" << binders
+       << "\n    (hargs : args.val = [" << as << "])" << hs
+       << " (hinv : s.Inv) (h64 : Platform64) :\n    Store.construct s "
+          "schema.Constructor."
+       << id
+       << " args ⦃ r s' =>\n      s'.Inv ∧ s.Grows s' ∧\n      match r with\n"
+          "      | core.result.Result.Ok t => Represents.rep s' t ("
+       << value
+       << ")\n      | core.result.Result.Err _ => True ⦄div := by\n"
+          "  apply WP.dspec_mono (Store.construct_holds s schema.Constructor."
+       << id << " args [" << list
+       << "] hinv h64 rfl\n    (by rw [hargs]; exact " << holds
+       << "))\n  rintro ⟨r, s'⟩ ⟨hinv', hg, hr⟩\n"
+          "  simp only [WP.uncurry'_pair] at hr ⊢\n"
+          "  refine ⟨hinv', hg, ?_⟩\n  cases r with\n  | Err e => trivial\n"
+          "  | Ok t =>\n    refine ⟨?_, ?_⟩\n    · simpa [Embed.embedded_enc_"
+       << ty << ", Embed.enc_" << ty << unfold << "] using hr\n";
+    if (k == 0)
+    {
+      cs << "    · simp [Embed.embedded_emb_" << ty << ", Embed.emb_" << ty
+         << "]\n\n";
+    }
+    else
+    {
+      cs << "    · simp only [Embed.embedded_emb_" << ty << ", Embed.emb_" << ty
+         << "]\n      exact " << (k == 1 ? embs : "⟨" + embs + "⟩") << "\n\n";
+    }
+  };
+  for (const std::string& ty : types)
+  {
+    std::string q = qualified(ty);
+    for (const EmbedCtor* c : byType.at(ty))
+    {
+      if (c->sname == "$emb_UOp")
+      {
+        for (const EmbedCtor* u : userOps)
+        {
+          cs << "/-- The user operator `" << u->sname << "`. -/\n";
+          emitConstruct(rustIdent(u->sname),
+                        ty,
+                        q + ".UOp Eo.UserOp." + u->cname,
+                        {},
+                        ", Embed.uop");
+        }
+        continue;
+      }
+      if (lits.count(c->sname) || c->sname == "$emb_Stuck"
+          || c->sname == "$emb_Apply" || c->sname == "$emb_Var")
+      {
+        // stored otherwise than as a node over the fields: these have
+        // lemmas written by hand, or none yet
+        continue;
+      }
+      std::string id = rustIdent(c->sname);
+      std::string k = q + "." + c->cname;
+      size_t n = c->fields.size();
+      std::string vars, ex, fs, reps, encs, forall, xsum;
+      for (size_t i = 0; i < n; i++)
+      {
+        std::string s = std::to_string(i);
+        vars += " x" + s;
+        ex += " (x" + s + " : " + fieldType(c->fields[i]) + ")";
+        fs += (i == 0 ? "f" : ", f") + s;
+        reps += " ∧ Represents.rep s f" + s + " x" + s;
+        encs += (i == 0 ? "" : ", ") + std::string("Embedded.enc x") + s;
+      }
+      cs << "/-- `" << c->sname << "`. -/\n";
+      emitConstruct(id, ty, k + vars, c->fields, "");
+      cs << "theorem CtorSpec." << id
+         << ".destruct {s : Store} {t : Term} {x : " << q
+         << "}\n    (h : Represents.rep s t x) :\n    (∃";
+      for (size_t i = 0; i < n; i++)
+      {
+        cs << " (f" << i << " : Term)";
+      }
+      cs << " (v : alloc.vec.Vec Term)" << ex << ", x = " << k << vars
+         << " ∧ v.val = [" << fs << "]" << reps
+         << " ∧\n      Store.destruct s schema.Constructor." << id
+         << " t = ok (core.result.Result.Ok (some v), s)) ∨\n    (("
+         << (n == 0 ? "" : "∀" + ex + ", ") << "x ≠ " << k << vars
+         << ") ∧\n      Store.destruct s schema.Constructor." << id
+         << " t = ok (core.result.Result.Ok none, s)) := by\n"
+         << "  rcases Store.destruct_holds schema.Constructor." << id
+         << " rfl h.1 with\n    ⟨v, xs, hx, hl, hd⟩ | ⟨hne, hd⟩\n";
+      if (n == 0)
+      {
+        cs << "  · obtain ⟨rfl, rfl⟩ := Embed.inv_" << ty << "_" << c->cname
+           << " hx\n    generalize hvl : v.val = l at hl\n    cases hl\n"
+              "    exact Or.inl ⟨v, rfl, hvl, hd⟩\n";
+      }
+      else
+      {
+        std::string pat;
+        for (size_t i = 0; i < n; i++)
+        {
+          pat += "x" + std::to_string(i) + ", ";
+        }
+        cs << "  · obtain ⟨" << pat << "rfl, rfl⟩ := Embed.inv_" << ty << "_"
+           << c->cname << " hx\n";
+        cs << "    have he := h.2\n    simp only [Embed.embedded_emb_" << ty
+           << ", Embed.emb_" << ty
+           << "] at he\n    generalize hvl : v.val = l at hl\n";
+        std::string indent = "    ";
+        for (size_t i = 0; i < n; i++)
+        {
+          std::string s2 = std::to_string(i);
+          cs << indent << "cases "
+             << (i == 0 ? "hl" : "hn" + std::to_string(i - 1)) << " with\n"
+             << indent << "| cons f" << s2 << " _ _ _ h" << s2 << " hn" << s2
+             << " =>\n";
+          indent += "  ";
+        }
+        cs << indent << "cases hn" << n - 1 << "\n"
+           << indent << "exact Or.inl ⟨" << fs << ", v";
+        for (size_t i = 0; i < n; i++)
+        {
+          cs << ", x" << i;
+        }
+        cs << ", rfl, hvl";
+        for (size_t i = 0; i < n; i++)
+        {
+          std::string e = "he";
+          for (size_t j = 0; j < i; j++)
+          {
+            e += ".2";
+          }
+          if (i + 1 < n)
+          {
+            e += ".1";
+          }
+          cs << ", ⟨h" << i << ", " << e << "⟩";
+        }
+        cs << ", hd⟩\n";
+      }
+      cs << "  · exact Or.inr ⟨fun" << (n == 0 ? "" : vars) << " he => hne ["
+         << encs << "]\n      (by subst he; simp [Embed.embedded_enc_" << ty
+         << ", Embed.enc_" << ty << "]), hd⟩\n\n";
+    }
+  }
+  ctorSpecs = cs.str();
   return o.str();
 }
 
@@ -2863,9 +3038,14 @@ void LeanMetaReduce::finalizeSpec()
   emitResourceFile("plugins/lean_meta/lean_meta_case_defs.lean",
                    "plugins/lean_meta/lean_meta_case_defs_gen.lean",
                    {{"$LEAN_CASE_DEFS$", d_caseDefs.str()}});
+  std::string ctorSpecs;
+  std::string embedding = printEmbedding(ctorSpecs);
   emitResourceFile("plugins/lean_meta/lean_meta_embed.lean",
                    "plugins/lean_meta/lean_meta_embed_gen.lean",
-                   {{"$LEAN_EMBED$", printEmbedding()}});
+                   {{"$LEAN_EMBED$", embedding}});
+  emitResourceFile("plugins/lean_meta/lean_meta_ctors.lean",
+                   "plugins/lean_meta/lean_meta_ctors_gen.lean",
+                   {{"$LEAN_CTORS$", ctorSpecs}});
 }
 
 void LeanMetaReduce::finalizeLemmas()
