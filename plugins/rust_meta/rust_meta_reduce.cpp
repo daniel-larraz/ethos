@@ -2324,7 +2324,9 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
         "$smt_Type",
         "($native_embed_smt \"SmtDatatype\")",
         "($native_embed_smt \"SmtDatatypeCons\")",
-        "($native_embed_smt \"SmtDatatypeDecl\")"};
+        "($native_embed_smt \"SmtDatatypeDecl\")",
+        "$eo_Cmd",
+        "$smt_Term"};
     for (size_t i = 0; i < nargs && proof.why.empty(); ++i)
     {
       MetaKind ak = getTypeMetaKindFor(ty[i], MetaKind::EUNOIA, true);
