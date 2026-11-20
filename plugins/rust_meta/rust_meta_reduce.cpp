@@ -658,8 +658,7 @@ class RustMetaReduce::Emitter
                                 "$emb_Numeral",
                                 "$emb_Rational",
                                 "$emb_String",
-                                "$emb_Binary",
-                                "$emb_Var"})
+                                "$emb_Binary"})
     {
       if (name == special)
       {
@@ -1549,7 +1548,10 @@ class RustMetaReduce::Emitter
     }
     if (isLiteralOp(k))
     {
-      if (k != Kind::EVAL_REQUIRES && k != Kind::EVAL_EQ)
+      // `eo::ite` is a conditional (see `conditional`), `eo::requires` a
+      // function of its own, and `eo::eq` has its spec; the others have none
+      if (k != Kind::EVAL_REQUIRES && k != Kind::EVAL_EQ
+          && k != Kind::EVAL_IF_THEN_ELSE)
       {
         leanUnsupported("a builtin operator");
       }

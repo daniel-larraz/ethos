@@ -1885,6 +1885,10 @@ std::string LeanMetaReduce::printEmbedding(std::string& ctorSpecs) const
                            const std::vector<std::string>& fields,
                            const std::string& unfold) {
     size_t k = fields.size();
+    // that the runtime stores the constructor as a node: as data, or (a
+    // variable) the same way
+    const std::string node =
+        id == rustIdent("$emb_Var") ? "(.inr rfl)" : "(.inl rfl)";
     std::string binders, as, hs, xs, list, holds = "HoldsList.nil", embs;
     for (size_t i = 0; i < k; i++)
     {
@@ -1913,7 +1917,7 @@ std::string LeanMetaReduce::printEmbedding(std::string& ctorSpecs) const
        << ")\n      | core.result.Result.Err _ => True ⦄div := by\n"
           "  apply WP.dspec_mono (Store.construct_holds s schema.Constructor."
        << id << " args [" << list
-       << "] hinv h64 rfl\n    (by rw [hargs]; exact " << holds
+       << "] hinv h64 " << node << "\n    (by rw [hargs]; exact " << holds
        << "))\n  rintro ⟨r, s'⟩ ⟨hinv', hg, hr⟩\n"
           "  simp only [WP.uncurry'_pair] at hr ⊢\n"
           "  refine ⟨hinv', hg, ?_⟩\n  cases r with\n  | Err e => trivial\n"
@@ -1949,7 +1953,7 @@ std::string LeanMetaReduce::printEmbedding(std::string& ctorSpecs) const
         continue;
       }
       if (lits.count(c->sname) || c->sname == "$emb_Stuck"
-          || c->sname == "$emb_Apply" || c->sname == "$emb_Var")
+          || c->sname == "$emb_Apply")
       {
         // stored otherwise than as a node over the fields: these have
         // lemmas written by hand, or none yet
@@ -1984,8 +1988,9 @@ std::string LeanMetaReduce::printEmbedding(std::string& ctorSpecs) const
          << (n == 0 ? "" : "∀" + ex + ", ") << "x ≠ " << k << vars
          << ") ∧\n      Store.destruct s schema.Constructor." << id
          << " t = ok (core.result.Result.Ok none, s)) := by\n"
-         << "  rcases Store.destruct_holds schema.Constructor." << id
-         << " rfl h.1 with\n    ⟨v, xs, hx, hl, hd⟩ | ⟨hne, hd⟩\n";
+         << "  rcases Store.destruct_holds schema.Constructor." << id << " "
+         << (c->sname == "$emb_Var" ? "(.inr rfl)" : "(.inl rfl)")
+         << " h.1 with\n    ⟨v, xs, hx, hl, hd⟩ | ⟨hne, hd⟩\n";
       if (n == 0)
       {
         cs << "  · obtain ⟨rfl, rfl⟩ := Embed.inv_" << ty << "_" << c->cname
