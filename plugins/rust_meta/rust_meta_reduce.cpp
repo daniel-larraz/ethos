@@ -1130,20 +1130,88 @@ class RustMetaReduce::Emitter
    * compute, and can fail, and written in place they would be arms of a
    * match that the rest of the case follows.
    */
+  /**
+   * `name(s, a, b)`, a call of a helper, as Lean has it on the store `st`:
+   * `name st a b`.
+   */
+  std::string leanApplied(const std::string& call, const std::string& st) const
+  {
+    std::string applied = call.substr(0, call.find('(')) + " " + st;
+    for (size_t i = call.find('(') + 2; i < call.size();)
+    {
+      size_t j = call.find_first_of(",)", i);
+      std::string arg = call.substr(i, j - i);
+      arg.erase(0, arg.find_first_not_of(' '));
+      if (!arg.empty())
+      {
+        applied += " " + ln(arg);
+      }
+      i = j + 1;
+    }
+    return applied;
+  }
   std::string conditional(const Expr& c,
                           const Expr& yes,
                           const Expr& no,
                           bool native)
   {
-    leanUnsupported("a conditional");
     std::string cv = expr(c);
+    // In the proof the conditional is a statement of its own, proved in
+    // place, a bullet per branch: its function gives a handle of logos's
+    // `__eo_ite` (or `native_ite`) of the condition and the two branches.
+    const std::string outerStore = leanStore(), outerInv = leanInv(),
+                      outerRem = leanRem(), outerIndent = lean.indent;
+    const std::vector<std::string> outerFacts = lean.facts,
+                                   outerPure = lean.pure;
+    const std::set<std::string> outerBuilt = lean.built;
+    const size_t outerStoreCount = lean.store;
+    const size_t outerUnfolds = lean.unfolds.size();
+    const std::string tag = std::to_string(next);
+    const std::string hx = "hx_" + tag, hbv = "hbv_" + tag;
+    size_t open = lean.lines.size();
+    lean.lines.push_back("");
+    lean.lines.push_back("");
+    lean.indent = outerIndent + "  ";
+    if (lean.store != 0)
+    {
+      leanLine("have hrem := " + outerRem);
+    }
+    leanLine("have hG := Store.Grows.refl " + outerStore);
+    leanLine(std::string("rcases Store.boolean_value_")
+             + (native ? "native" : "term") + " h_" + ln(cv) + " with ⟨" + hx
+             + ", " + hbv + "⟩ | ⟨" + hx + ", " + hbv + "⟩"
+             + (native ? "" : " | ⟨" + hx + ", " + hbv + "⟩"));
+    // a branch: from the store of the call, its lines, its end
+    auto branch =
+        [&](const Expr& e, std::ostringstream& out, const char* lemma) {
+          lean.indent = outerIndent + "  ";
+          leanLine("· ite_branch " + hbv);
+          lean.indent = outerIndent + "    ";
+          Emitter be(*this, out);
+          std::string r = be.expr(e);
+          next = be.next;
+          leanAdopt(be);
+          leanLine("ite_done " + leanInv() + " hG with (" + lemma + " _ " + hx
+                   + " h_" + ln(r) + ")");
+          lean.store = outerStoreCount;
+          lean.facts = outerFacts;
+          lean.pure = outerPure;
+          lean.built = outerBuilt;
+          return r;
+        };
     std::ostringstream ys, ns;
-    Emitter ye(*this, ys);
-    std::string a = ye.expr(yes);
-    next = ye.next;
-    Emitter ne(*this, ns);
-    std::string b = ne.expr(no);
-    next = ne.next;
+    std::string a =
+        branch(yes, ys, native ? "native_ite_true_rep" : "eo_ite_true_rep");
+    std::string b =
+        branch(no, ns, native ? "native_ite_false_rep" : "eo_ite_false_rep");
+    if (!native)
+    {
+      lean.indent = outerIndent + "  ";
+      leanLine("· ite_branch " + hbv);
+      leanLine("  ite_stuck " + outerInv + " hG with " + hx);
+    }
+    lean.lines.back() += ")";
+    lean.indent = outerIndent;
     const std::string ret = "CheckResult<Term>";
     std::string body =
         "let branch = "
@@ -1153,7 +1221,27 @@ class RustMetaReduce::Emitter
         + close(ys.str(), "Ok(" + a + ")", ret) + "}\nSome(false) => {\n"
         + close(ns.str(), "Ok(" + b + ")", ret)
         + "}\nNone => Ok(s.stuck()),\n}\n";
-    return val(helper("if", {{"condition", cv}}, body) + "?");
+    std::string call = helper("if", {{"condition", cv}}, body);
+    // the helpers that the branches are cut into are unfolded in the block
+    std::string unfolds;
+    for (size_t i = outerUnfolds; i < lean.unfolds.size(); ++i)
+    {
+      unfolds += " " + lean.unfolds[i];
+    }
+    lean.unfolds.resize(outerUnfolds);
+    std::string v = fresh();
+    lean.lines[open] =
+        outerIndent + "have h_ite_" + v + " := (show "
+        + leanApplied(call, outerStore) + " ⦃ r s' => s'.Inv ∧ " + outerStore
+        + ".Grows s' ∧ match r with | core.result.Result.Ok t => "
+          "Represents.rep s' t ("
+        + (native ? "SmtEval.native_ite" : "Eo.__eo_ite")
+        + " _ _ _) | core.result.Result.Err _ => True ⦄div from by";
+    lean.lines[open + 1] =
+        outerIndent + "  unfold " + call.substr(0, call.find('(')) + unfolds;
+    o << "let " << v << " = " << attempt(call) << ";\n" << CUT;
+    leanStoreStep("h_ite_" + v, v);
+    return v;
   }
   std::string op(Kind k, const Expr& t, size_t start)
   {
@@ -1177,6 +1265,7 @@ class RustMetaReduce::Emitter
       const std::vector<std::string> outerFacts = lean.facts,
                                      outerPure = lean.pure;
       const bool first = lean.store == 0;
+      const size_t outerUnfolds = lean.unfolds.size();
       size_t open = lean.lines.size();
       lean.lines.push_back("");
       lean.lines.push_back("");
@@ -1208,20 +1297,14 @@ class RustMetaReduce::Emitter
                          + ";\nif stuck { return Ok(s.stuck()); }\n"
                          + close(rs.str(), "Ok(" + r + ")", "CheckResult<Term>");
       std::string call = helper("requires", {}, body);
-      // `name(s, a, b)` is `name s a b` in Lean, on the store of the call
       const std::string fn = call.substr(0, call.find('('));
-      std::string applied = fn + " " + outerStore;
-      for (size_t i = call.find('(') + 2; i < call.size();)
+      std::string applied = leanApplied(call, outerStore);
+      std::string unfolds;
+      for (size_t i = outerUnfolds; i < lean.unfolds.size(); ++i)
       {
-        size_t j = call.find_first_of(",)", i);
-        std::string arg = call.substr(i, j - i);
-        arg.erase(0, arg.find_first_not_of(' '));
-        if (!arg.empty())
-        {
-          applied += " " + ln(arg);
-        }
-        i = j + 1;
+        unfolds += " " + lean.unfolds[i];
       }
+      lean.unfolds.resize(outerUnfolds);
       std::string v = fresh();
       lean.lines[open] =
           outerIndent + "have h_req_" + v + " := (show " + applied
@@ -1229,7 +1312,7 @@ class RustMetaReduce::Emitter
           + ".Grows s' ∧ match r with | core.result.Result.Ok t => "
             "Represents.rep s' t (Eo.__eo_requires _ _ _) | "
             "core.result.Result.Err _ => True ⦄div from by";
-      lean.lines[open + 1] = outerIndent + "  unfold " + fn;
+      lean.lines[open + 1] = outerIndent + "  unfold " + fn + unfolds;
       o << "let " << v << " = " << attempt(call) << ";\n" << CUT;
       leanStoreStep("h_req_" + v, v);
       return v;
@@ -2071,7 +2154,9 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   std::ostringstream o, table;
   table << "source\tproof\twhy\n";
   o << "module\npublic import $CHECKER$\npublic import $CALC$.Logos\n"
-       "import all $CALC$.Logos\npublic import $CASES$\nimport all $CASES$\n"
+       "import all $CALC$.Logos\npublic import $CALC$.SmtTranslate\n"
+       "import all $CALC$.SmtTranslate\npublic import $CALC$.SmtModel\n"
+       "import all $CALC$.SmtModel\npublic import $CASES$\nimport all $CASES$\n"
        "public import PathosProofs.Generated\n\n"
        "/-!\n# The proofs about the generated functions\n\n"
        "Written by Ethos's rust-meta with the functions: for each program, "
@@ -2080,7 +2165,8 @@ void RustMetaReduce::leanProofs(size_t numParts) const
        "set_option linter.unusedVariables false\n"
        "set_option maxRecDepth 8000\n\n"
        "@[expose] public section\n\nnamespace pathos_compiled_checker\n\n"
-       "open Aeneas Aeneas.Std Result\nopen generated";
+       "open Aeneas Aeneas.Std Result\nopen Eo hiding Term\nopen Smtm\n"
+       "open generated";
   for (size_t k = 0; k < numParts; ++k)
   {
     o << " generated.part" << k;
@@ -2094,7 +2180,9 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   auto names = [&](const LeanProof& p) {
     Names n;
     n.id = ident(p.name);
-    n.lean = "Eo." + leanName(p.name);
+    // logos's function, by its name: Logos.lean has it in Eo, the modules
+    // of the SMT translation and model at the top (both are opened)
+    n.lean = leanName(p.name);
     for (size_t i = 0; i < p.nargs; ++i)
     {
       std::string a = "a" + std::to_string(i);
@@ -2471,13 +2559,14 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   // the cache: the store's invariant is stated with it.
   std::ostringstream c, conj, mono, lemmas;
   c << "module\npublic import $CHECKER$\npublic import $CALC$.Logos\n"
+       "public import $CALC$.SmtTranslate\npublic import $CALC$.SmtModel\n"
        "public import PathosProofs.Store.Rep\n\n"
        "/-!\n# What the cache of program results holds\n\n"
        "Written by Ethos's rust-meta with the functions: for each program "
        "whose results\nare cached, that an entry's result is the program's on "
        "the entry's arguments.\nDo not edit.\n-/\n\n"
        "@[expose] public section\n\nnamespace pathos_compiled_checker\n\n"
-       "open Aeneas Aeneas.Std Result\n\n";
+       "open Aeneas Aeneas.Std Result\nopen Eo hiding Term\nopen Smtm\n\n";
   std::vector<std::pair<size_t, const LeanProof*>> cached;
   for (const LeanProof& p : d_leanProofs)
   {
@@ -2501,9 +2590,10 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       << " (nodes : List TermData) (args : List Term) (res : Term) : Prop :=\n"
          "  ∃ xs : List Eo.Term, RepList nodes args xs ∧\n    match xs with\n"
          "    | ["
-      << pat << "] => Rep nodes res.val (Eo." << leanName(p.name) << xs
+      << pat << "] => Rep nodes res.val (" << leanName(p.name) << xs
       << ")\n    | _ => False\n\ntheorem ProgramSem.p" << p.cache
-      << ".mono {nodes nodes' : List TermData} {args : List Term} {res : Term}\n"
+      << ".mono {nodes nodes' : List TermData} {args : List Term} {res : "
+         "Term}\n"
          "    (hpre : nodes <+: nodes') (h : ProgramSem.p"
       << p.cache << " nodes args res) :\n    ProgramSem.p" << p.cache
       << " nodes' args res := by\n  obtain ⟨xs, hl, hr⟩ := h\n"
