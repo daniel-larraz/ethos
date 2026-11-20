@@ -1510,6 +1510,14 @@ class RustMetaReduce::Emitter
                         v);
           return v;
         }
+        if (t.getNumChildren() == 2 && name == "nat.zero")
+        {
+          // the natural number 0 (pathos's Runtime/Nats.lean)
+          std::string st = leanStore(), inv = leanInv();
+          std::string v = val(native(name, 0, ""));
+          leanStoreStep("Store.native_nat_zero_spec " + st + " " + inv + " h64", v);
+          return v;
+        }
         // the native operations with a specification in the proofs
         // (pathos's Runtime/Natives.lean: Store.native_spec_<name>)
         static const std::set<std::string> specified{"teq",
@@ -1710,10 +1718,18 @@ class RustMetaReduce::Emitter
       std::string n = k == Kind::VARIABLE ? "$emb_Var" : getName(t[0]);
       std::string found;
       bool data = false;
+      std::string native;
       if (starts(n, "$native_apply_"))
       {
-        leanUnsupported("a native pattern");
-        found = part(nativePattern(getName(t[1]), value));
+        native = getName(t[1]);
+        // `nat.zero` and `(nat.succ m)` have specs (pathos's
+        // Runtime/Nats.lean); the others not yet
+        if (!((native == "nat.zero" && t.getNumChildren() == 2)
+              || (native == "nat.succ" && t.getNumChildren() == 3)))
+        {
+          leanUnsupported("a native pattern");
+        }
+        found = part(nativePattern(native, value));
         start = 2;
       }
       else
@@ -1731,7 +1747,32 @@ class RustMetaReduce::Emitter
         o << "let " << fields.back() << " = fields[" << (i - start) << "];\n";
       }
       o << CUT;
-      if (data && n == "$emb_Boolean" && fields.size() == 1)
+      if (native == "nat.zero" || native == "nat.succ")
+      {
+        // the pattern stores a numeral (0, or the predecessor), so the
+        // store changes
+        std::string st = leanStore(), inv = leanInv();
+        std::string before = words(lean.facts);
+        lean.store++;
+        if (native == "nat.zero")
+        {
+          leanLine("pat_native_zero Store.native_pattern_nat_zero_spec " + st + " "
+                   + ln(value) + " h_" + ln(value) + " " + inv + " h64 storing ⟨"
+                   + leanStore() + ", " + leanInv() + "⟩ growing hG carrying"
+                   + before + " in " + lean.caseDef);
+        }
+        else
+        {
+          const std::string& f = fields[0];
+          leanLine("pat_destruct_lit Store.native_pattern_succ_spec " + st + " "
+                   + ln(value) + " h_" + ln(value) + " " + inv + " h64 as ⟨" + f
+                   + ", x_" + f + ", h_" + f + "⟩ storing ⟨" + leanStore() + ", "
+                   + leanInv() + "⟩ growing hG carrying" + before + " in "
+                   + lean.caseDef);
+          lean.facts.push_back("h_" + f);
+        }
+      }
+      else if (data && n == "$emb_Boolean" && fields.size() == 1)
       {
         // a Boolean literal: destruct stores a native copy of its value
         // (pathos's Runtime/Literals.lean), so the store changes
@@ -2641,8 +2682,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       // the loop, by induction over it
       std::string order = n.as + " s" + n.xs;
       o << "theorem body_" << n.id << "_spec" << head << " :\n    body_" << n.id
-        << " s" << n.as << post << result << " := by\n  unfold body_" << n.id
-        << "\n";
+        << " s" << n.as << post << result << " := by\n";
       // by induction on the budget of calls, which every round that goes
       // round again uses up (its `tick`), over the loop's equation: a loop
       // that Aeneas puts in a block with the programs it calls has no
@@ -2654,12 +2694,14 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       {
         motive << " Represents.rep s a" << i << " x_a" << i << " →";
       }
-      motive << "\n      body_" << n.id << "_loop" << n.as << " s" << post
-             << result;
+      // stated of the body, whose arguments are in the Rust's order (Aeneas
+      // orders the loop function's arguments its own way); the body is the loop
+      motive << "\n      body_" << n.id << " s" << n.as << post << result;
       o << "  refine (?_ : " << motive.str() << ") s.budget" << order
         << " le_rfl hinv hrem" << n.reps << "\n  intro k\n"
         << "  refine Nat.strong_induction_on k ?_\n  intro k ihl" << order
-        << " hk hinv hrem" << n.reps << "\n  unfold body_" << n.id << "_loop"
+        << " hk hinv hrem" << n.reps << "\n  unfold body_" << n.id << " body_"
+        << n.id << "_loop"
         << "\n  step with step_" << n.id << "_spec n ih s" << n.as << n.xs
         << " hinv h64 hrem" << n.reps
         << " as ⟨r, s1, hinv1, hg1, hr⟩\n  cases r with\n"
@@ -2694,9 +2736,11 @@ void RustMetaReduce::leanProofs(size_t numParts) const
           ch = ' ';
         }
       }
-      o << "      apply WP.dspec_mono (ihl s1.budget (by omega)" << bs << " s1"
-        << ys2 << " le_rfl hinv1 (hg1.rem hrem)" << hs2
-        << ")\n      loop_close hg1 heq\n\n";
+      // the rest of the loop, by the hypothesis on the body, which is the
+      // loop function with Aeneas's order of the arguments
+      o << "      have hrec := ihl s1.budget (by omega)" << bs << " s1" << ys2
+        << " le_rfl hinv1 (hg1.rem hrem)" << hs2 << "\n      unfold body_" << n.id
+        << " at hrec\n      apply WP.dspec_mono hrec\n      loop_close hg1 heq\n\n";
     }
     // the program: the body between `enter` and `leave`
     std::string congr, xlist, replist = "List.Forall₂.nil", mono = replist;
