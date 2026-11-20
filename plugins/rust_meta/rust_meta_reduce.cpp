@@ -693,6 +693,27 @@ class RustMetaReduce::Emitter
            || std::find(lean.pure.begin(), lean.pure.end(), "hn_" + x)
                   != lean.pure.end();
   }
+  /**
+   * The lines of a call of the runtime on a slice of arguments `vs`, whose
+   * specification `spec` takes the store, the slice and what it holds,
+   * the facts about the arguments, the invariant: the result is `v`.
+   */
+  void leanArgsStep(const std::string& spec,
+                    const std::string& st,
+                    const std::string& inv,
+                    const std::vector<std::string>& vs,
+                    const std::string& v)
+  {
+    std::string reps;
+    for (const std::string& x : vs)
+    {
+      reps += " h_" + ln(x);
+    }
+    leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
+    leanStoreStep(spec + " " + st + " e_" + v + " (by rw [he_" + v + "]; rfl)"
+                      + reps + " " + inv + " h64",
+                  v);
+  }
   void leanLine(const std::string& line)
   {
     lean.lines.push_back(lean.indent + line);
@@ -1317,6 +1338,21 @@ class RustMetaReduce::Emitter
       leanStoreStep("h_req_" + v, v);
       return v;
     }
+    if (k == Kind::EVAL_EQ)
+    {
+      std::vector<std::string> vs;
+      std::string as;
+      for (size_t i = start; i < t.getNumChildren(); ++i)
+      {
+        vs.push_back(expr(t[i]));
+        as += (i == start ? "" : ", ") + vs.back();
+      }
+      std::string st = leanStore(), inv = leanInv();
+      std::string v =
+          val("s.builtin_core(EvalOp::" + evalOp(k) + ", &[" + as + "])?");
+      leanArgsStep("Store.builtin_spec_eq", st, inv, vs, v);
+      return v;
+    }
     std::string as = args(t, start);
     if (k == Kind::EVAL_TYPE_OF || k == Kind::EVAL_NIL
         || k == Kind::EVAL_DT_CONSTRUCTORS || k == Kind::EVAL_DT_SELECTORS)
@@ -1406,9 +1442,28 @@ class RustMetaReduce::Emitter
                         v);
           return v;
         }
-        leanUnsupported("the native operation " + name);
-        std::string as = args(t, 2);
-        return val(native(name, t.getNumChildren() - 2, as));
+        // the native operations with a specification in the proofs
+        // (pathos's Runtime/Natives.lean: Store.native_spec_<name>)
+        static const std::set<std::string> specified{
+            "teq", "Teq", "streq", "and", "or"};
+        if (!specified.count(name))
+        {
+          leanUnsupported("the native operation " + name);
+        }
+        std::vector<std::string> vs;
+        std::string as;
+        for (size_t i = 2; i < t.getNumChildren(); ++i)
+        {
+          vs.push_back(expr(t[i]));
+          as += (i == 2 ? "" : ", ") + vs.back();
+        }
+        std::string st = leanStore(), inv = leanInv();
+        std::string v = val(native(name, t.getNumChildren() - 2, as));
+        if (specified.count(name))
+        {
+          leanArgsStep("Store.native_spec_" + name, st, inv, vs, v);
+        }
+        return v;
       }
       if (!leanHasCtorLemma(n))
       {
@@ -1443,7 +1498,7 @@ class RustMetaReduce::Emitter
       Kind b = builtin(n);
       if (b != Kind::NONE)
       {
-        if (b != Kind::EVAL_REQUIRES)
+        if (b != Kind::EVAL_REQUIRES && b != Kind::EVAL_EQ)
         {
           leanUnsupported("the builtin " + n);
         }
@@ -1471,7 +1526,7 @@ class RustMetaReduce::Emitter
     }
     if (isLiteralOp(k))
     {
-      if (k != Kind::EVAL_REQUIRES)
+      if (k != Kind::EVAL_REQUIRES && k != Kind::EVAL_EQ)
       {
         leanUnsupported("a builtin operator");
       }
