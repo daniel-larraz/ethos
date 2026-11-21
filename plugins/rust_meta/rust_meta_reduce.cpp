@@ -1763,7 +1763,8 @@ class RustMetaReduce::Emitter
             {"int.pow2", "int_pow2"},
             {"int.to_nat", "int_to_nat"},
             {"Int.toNat", "int_to_nat"},
-            {"nat.succ", "nat_succ"}};
+            {"nat.succ", "nat_succ"},
+            {"uconst_id", "uconst_id"}};
         if (!specified.count(name))
         {
           leanUnsupported("the native operation " + name);
