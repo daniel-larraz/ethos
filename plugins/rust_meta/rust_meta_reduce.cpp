@@ -2218,6 +2218,18 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
         << ident("$eo_StateObj_proven")
         << "(s, element),\nOk(None) => s.boolean(true),\nErr(e) => Err(e),\n"
         << "};\ns.leave();\nresult\n}\n";
+    // The proof is written by hand (pathos's Runtime/StateNth.lean): the
+    // lookup with jump pointers against logos's recursive function, from
+    // what is proved of `$eo_StateObj_proven`
+    d_leanProofs.emplace_back();
+    LeanProof& lp = d_leanProofs.back();
+    lp.name = name;
+    lp.nargs = 2;
+    // the state is assumed OK, as every state is
+    lp.good = {"StateOK", ""};
+    lp.calls = {"$eo_StateObj_proven"};
+    lp.handProof = "state_proven_nth_spec n (fun m hm => (ih m hm)."
+                   + ident("$eo_StateObj_proven") + ")";
     return out.str();
   }
   // Recognize the checking loop's guarded right fold, rather than relying
