@@ -1492,6 +1492,64 @@ class RustMetaReduce::Emitter
       leanArgsStep(spec, st, inv, vs, v);
       return v;
     }
+    if (k == Kind::EVAL_NIL || k == Kind::EVAL_CONS)
+    {
+      std::vector<std::string> vs;
+      std::string as;
+      for (size_t i = start; i < t.getNumChildren(); ++i)
+      {
+        vs.push_back(expr(t[i]));
+        as += (i == start ? "" : ", ") + vs.back();
+      }
+      std::string st = leanStore(), inv = leanInv(), rem = leanRem();
+      if (k == Kind::EVAL_NIL)
+      {
+        // a call of the generated `$eo_nil`, which logos's case writes as
+        // `__eo_nil` too
+        std::string v = val(ident("$eo_nil") + "(s, " + as + ")?");
+        std::string spec = "ih." + ident("$eo_nil") + " " + st, holes, reps;
+        for (const std::string& x : vs)
+        {
+          spec += " " + ln(x);
+          holes += " _";
+          reps += " h_" + ln(x);
+        }
+        leanStoreStep(spec + holes + " " + inv + " h64 " + rem + reps, v);
+        lean.calls.insert("$eo_nil");
+        return v;
+      }
+      // `eo::cons`: pathos's Store.builtin_spec_cons (Runtime/Lists.lean),
+      // which takes what is proved of the generated `$eo_is_list_nil`. The
+      // element must not be stuck (logos's `__eo_cons` does not catch a
+      // stuck element), and the signature must have no operator that nests
+      // to the left (the lemma walks right-nested lists)
+      bool left = false;
+      for (const auto& n : m.d_leftAssoc)
+      {
+        left |= m.d_constructors.count(n) != 0;
+      }
+      if (left)
+      {
+        leanUnsupported("eo::cons with an operator that nests to the left");
+      }
+      if (vs.size() != 3 || !leanNotStuck(vs[1]))
+      {
+        leanUnsupported("eo::cons of an element that may be stuck");
+      }
+      std::string v = val("s.builtin_list(EvalOp::" + evalOp(k) + ", &[" + as + "])?");
+      std::string reps;
+      for (const std::string& x : vs)
+      {
+        reps += " h_" + ln(x);
+      }
+      leanLine("step as ⟨e_" + v + ", he_" + v + "⟩");
+      leanStoreStep("Store.builtin_spec_cons n ih." + ident("$eo_is_list_nil") + " " + st
+                        + " e_" + v + " (by rw [he_" + v + "]; rfl)" + reps
+                        + " (by ns_tac) " + inv + " h64 " + rem + " (fun _ => rfl)",
+                    v);
+      lean.calls.insert("$eo_is_list_nil");
+      return v;
+    }
     std::string as = args(t, start);
     if (k == Kind::EVAL_TYPE_OF || k == Kind::EVAL_NIL
         || k == Kind::EVAL_DT_CONSTRUCTORS || k == Kind::EVAL_DT_SELECTORS)
@@ -1768,7 +1826,7 @@ class RustMetaReduce::Emitter
       // their specs; the others have none
       if (k != Kind::EVAL_REQUIRES && k != Kind::EVAL_EQ
           && k != Kind::EVAL_IF_THEN_ELSE && k != Kind::EVAL_LENGTH
-          && k != Kind::EVAL_AND)
+          && k != Kind::EVAL_AND && k != Kind::EVAL_NIL && k != Kind::EVAL_CONS)
       {
         leanUnsupported("a builtin operator");
       }
