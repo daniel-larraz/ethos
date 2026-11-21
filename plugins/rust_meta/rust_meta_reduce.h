@@ -97,6 +97,13 @@ class RustMetaReduce : public MetaReducePlugin
     std::vector<Member> top;
     std::string name;
     size_t nargs = 0;
+    /**
+     * What the proof assumes of each argument beside its handle, by the
+     * checker-state invariant (pathos's Runtime/StateInv.lean): `StateOK`
+     * for every state, `ProofOK` for a proof whose formula a case applies
+     * without logos's guard, and empty for the others.
+     */
+    std::vector<std::string> good;
     /** The arguments the body tests for the stuck term, in order. */
     std::vector<size_t> stuck;
     /** What lemma C gives where no case applies: the stuck value

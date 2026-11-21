@@ -626,8 +626,36 @@ class RustMetaReduce::Emitter
      * the binary again from them is in range.
      */
     std::map<std::string, std::string> binaryOf;
+    /**
+     * The variables whose states the proof shows to be OK (`good_tac`, by
+     * pathos's Runtime/StateInv.lean): an argument, the tail of an OK
+     * state, the empty state, and what a function that keeps states OK
+     * builds from OK states.
+     */
+    std::set<std::string> okState;
+    /** The variables whose proofs are `pf F` of a term `F` not stuck. */
+    std::set<std::string> okProof;
+    /** The formula of a proof argument (`$eo_pf F`), and the argument. */
+    std::map<std::string, size_t> pfOf;
+    /** The proof arguments whose formula is applied without the guard. */
+    std::set<size_t> proofOK;
   };
   Lean lean;
+  /**
+   * What a call passes for the `j`-th argument of `callee`, which may
+   * have to be OK: written once the callee's `good` is known (see
+   * `leanProofs`), from whether `v` is a state or a proof the proof
+   * shows to be OK.
+   */
+  std::string leanGood(const std::string& callee,
+                       size_t j,
+                       const std::string& v) const
+  {
+    std::string x = ln(v);
+    bool ok = lean.okState.count(x) || lean.okProof.count(x);
+    return std::string("\x01") + callee + "\x02" + std::to_string(j) + "\x02"
+           + (ok ? "1" : "0") + "\x03";
+  }
   /** The Lean name of a Rust variable. */
   std::string ln(const std::string& v) const
   {
@@ -719,6 +747,19 @@ class RustMetaReduce::Emitter
                         + " _ _ " + inv + " h64 h_" + ln(f) + " h_" + ln(a),
                     v);
       return v;
+    }
+    for (const std::string& x : {ln(f), ln(a)})
+    {
+      // the formula of a proof argument: the program assumes the argument
+      // OK (`ProofOK`), which says the formula is not stuck
+      auto it = lean.pfOf.find(x);
+      if (!leanNotStuck(x) && it != lean.pfOf.end())
+      {
+        leanLine("have hn_" + x + " := hg_a" + std::to_string(it->second)
+                 + " _ rfl");
+        lean.pure.push_back("hn_" + x);
+        lean.proofOK.insert(it->second);
+      }
     }
     if (!leanNotStuck(f) || !leanNotStuck(a))
     {
@@ -827,6 +868,10 @@ class RustMetaReduce::Emitter
     lean.unfolds = part.lean.unfolds;
     lean.calls = part.lean.calls;
     lean.alias = part.lean.alias;
+    lean.okState = part.lean.okState;
+    lean.okProof = part.lean.okProof;
+    lean.pfOf = part.lean.pfOf;
+    lean.proofOK = part.lean.proofOK;
     if (lean.why.empty())
     {
       lean.why = part.lean.why;
@@ -1623,6 +1668,11 @@ class RustMetaReduce::Emitter
                         + " h64",
                     v);
       lean.built.insert(v);
+      if (n == "$emb_s.nil" || n == "$emb_s.Stuck")
+      {
+        // `StateOK.nil`, `StateOK.stuck`
+        lean.okState.insert(v);
+      }
       return v;
     }
     if (k == Kind::APPLY_OPAQUE)
@@ -1785,6 +1835,11 @@ class RustMetaReduce::Emitter
                         + " " + inv + " h64",
                     v);
       lean.built.insert(v);
+      if (n == "$eo_pf" && vs.size() == 1 && leanNotStuck(vs[0]))
+      {
+        // `ProofOK.pf`
+        lean.okProof.insert(v);
+      }
       return v;
     }
     if (k == Kind::APPLY && t[0].getKind() == Kind::PROGRAM_CONST)
@@ -1808,15 +1863,47 @@ class RustMetaReduce::Emitter
       }
       std::string st = leanStore(), inv = leanInv(), rem = leanRem();
       std::string v = val(ident(n) + "(s" + (as.empty() ? "" : ", " + as) + ")?");
-      std::string spec = "ih." + ident(n) + " " + st, holes, reps;
-      for (const std::string& x : vs)
+      std::string spec = "ih." + ident(n) + " " + st, holes, reps, goods;
+      for (size_t j = 0; j < vs.size(); ++j)
       {
+        const std::string& x = vs[j];
         spec += " " + ln(x);
         holes += " _";
         reps += " h_" + ln(x);
+        goods += leanGood(n, j, x);
       }
-      leanStoreStep(spec + holes + " " + inv + " h64 " + rem + reps, v);
+      leanStoreStep(spec + holes + " " + inv + " h64 " + rem + reps + goods, v);
       lean.calls.insert(n);
+      // the functions that keep states OK (pathos's Runtime/StateInv.lean):
+      // the state arguments that must be OK for the result to be
+      static const std::map<std::string, std::vector<size_t>> keeps = {
+          {"$eo_push_proven", {1}},
+          {"$eo_invoke_cmd_check_proven", {0}},
+          {"$eo_invoke_cmd_step_pop", {1}},
+          {"$eo_invoke_cmd", {0}},
+          {"$eo_invoke_cmd_list", {0}},
+          {"$eo_invoke_assume_list", {0}}};
+      auto kt = keeps.find(n);
+      if (kt != keeps.end())
+      {
+        bool ok = true;
+        for (size_t j : kt->second)
+        {
+          ok = ok && j < vs.size() && lean.okState.count(ln(vs[j]));
+        }
+        if (ok)
+        {
+          lean.okState.insert(v);
+        }
+      }
+      if (n == "$eo_state_proven_nth" && vs.size() == 2
+          && lean.okState.count(ln(vs[0])))
+      {
+        // the formula of an OK state's element is not stuck
+        leanLine("have hn_" + v + " := state_proven_nth_ne_stuck_of h_" + v
+                 + " (by good_tac)");
+        lean.pure.push_back("hn_" + v);
+      }
       return v;
     }
     if (isLiteralOp(k))
@@ -2042,6 +2129,17 @@ class RustMetaReduce::Emitter
           lean.facts.push_back("h_" + f);
         }
         leanLine(line + " " + leanElse());
+        std::string x = ln(value);
+        if (n == "$emb_s.cons" && fields.size() == 2 && lean.okState.count(x))
+        {
+          // the tail of an OK state (`StateOK.tail`)
+          lean.okState.insert(fields[1]);
+        }
+        if (n == "$eo_pf" && fields.size() == 1 && x.size() > 1 && x[0] == 'a'
+            && x.find_first_not_of("0123456789", 1) == std::string::npos)
+        {
+          lean.pfOf[fields[0]] = std::stoul(x.substr(1));
+        }
       }
       for (size_t i = start; i < t.getNumChildren(); ++i)
       {
@@ -2237,6 +2335,8 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
         LeanProof& lp = d_leanProofs.back();
         lp.name = name;
         lp.nargs = 2;
+        // the state is assumed OK, as every state is
+        lp.good = {"StateOK", ""};
         lp.calls = {"$eo_is_bool_type", "$eo_is_closed",
                     "$eo_push_input_assume_check"};
         auto spec = [&](const char* prog) {
@@ -2253,6 +2353,17 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
   LeanProof& proof = d_leanProofs.back();
   proof.name = name;
   proof.nargs = nargs;
+  proof.good.assign(nargs, "");
+  for (size_t i = 0; i < nargs; ++i)
+  {
+    // every state is assumed OK (pathos's Runtime/StateInv.lean)
+    std::ostringstream ts;
+    ts << ty[i];
+    if (ts.str() == "($native_embed_checker \"CState\")")
+    {
+      proof.good[i] = "StateOK";
+    }
+  }
   out << "// EO program " << quote(name) << "\npub fn " << id << "(s: &mut Store"
       << params << ") -> CheckResult<Term> {\n"
       << attempt("s.enter()") << ";\n";
@@ -2445,6 +2556,13 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     }
     for (size_t j = 0; j < nargs; ++j)
     {
+      if (proof.good[j] == "StateOK")
+      {
+        e.lean.okState.insert("a" + std::to_string(j));
+      }
+    }
+    for (size_t j = 0; j < nargs; ++j)
+    {
       e.pattern(pat[j + 1], "a" + std::to_string(j));
     }
     std::string value, last;
@@ -2453,14 +2571,25 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
       // Every argument is evaluated before the next round has any.
       value = "Next::Again([";
       std::string reps;
+      size_t goods = 0;
       for (size_t j = 1; j <= nargs; ++j)
       {
         std::string v = e.expr(body[j]);
         value += (j == 1 ? "" : ", ") + v;
         reps += " h_" + e.ln(v);
+        if (proof.good[j - 1] == "StateOK")
+        {
+          // the next round's state is OK, as this round's is
+          goods++;
+          if (!e.lean.okState.count(e.ln(v)))
+          {
+            e.leanUnsupported("a state that may not be OK");
+          }
+        }
       }
       value += "])";
-      last = "case_again " + e.leanInv() + " hG with" + reps;
+      last = "case_again " + e.leanInv() + " hG with" + reps
+             + (goods == 0 ? "" : " goods " + std::to_string(goods));
     }
     else
     {
@@ -2475,6 +2604,15 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
     pc.lines = e.lean.lines;
     pc.lines.push_back(last + " in " + caseDef + " using"
                        + Emitter::words(e.lean.pure));
+    for (size_t j : e.lean.proofOK)
+    {
+      proof.good[j] = "ProofOK";
+      if (loop && e.lean.why.empty())
+      {
+        // the next round would have to be shown OK too
+        e.leanUnsupported("a loop whose proof argument is assumed OK");
+      }
+    }
     pc.why = e.lean.why;
     proof.cases.push_back(pc);
     proof.calls.insert(e.lean.calls.begin(), e.lean.calls.end());
@@ -2614,6 +2752,56 @@ void RustMetaReduce::leanProofs(size_t numParts) const
                       : "no logos function: only the runtime's datatype "
                         "operators reach it";
   }
+  // What a call passes for an argument its callee assumes OK (see
+  // `leanGood`): `good_tac`'s proof, where the line's emitter named where
+  // the argument comes from, and otherwise the reason there is no proof.
+  std::map<std::string, const std::vector<std::string>*> goodOf;
+  for (const LeanProof& p : d_leanProofs)
+  {
+    goodOf[p.name] = &p.good;
+  }
+  auto resolve = [&](const std::string& line, std::string* reason) {
+    std::string out;
+    size_t i = 0;
+    for (size_t b; (b = line.find('\x01', i)) != std::string::npos;)
+    {
+      size_t m1 = line.find('\x02', b), m2 = line.find('\x02', m1 + 1),
+             e = line.find('\x03', m2);
+      out += line.substr(i, b - i);
+      std::string callee = line.substr(b + 1, m1 - b - 1);
+      size_t j = std::stoul(line.substr(m1 + 1, m2 - m1 - 1));
+      bool ok = line[m2 + 1] == '1';
+      auto it = goodOf.find(callee);
+      std::string g =
+          it != goodOf.end() && j < it->second->size() ? (*it->second)[j] : "";
+      if (!g.empty())
+      {
+        out += " (by good_tac)";
+        if (!ok && reason != nullptr && reason->empty())
+        {
+          *reason = g == "StateOK" ? "a state that may not be OK"
+                                   : "a proof that may not be OK";
+        }
+      }
+      i = e + 1;
+    }
+    return out + line.substr(i);
+  };
+  for (const LeanProof& p : d_leanProofs)
+  {
+    for (size_t c = 0; c < p.cases.size() && why[p.name].empty(); ++c)
+    {
+      std::string reason;
+      for (const std::string& l : p.cases[c].lines)
+      {
+        resolve(l, &reason);
+      }
+      if (!reason.empty())
+      {
+        why[p.name] = "case " + std::to_string(c) + " has " + reason;
+      }
+    }
+  }
   for (bool changed = true; changed;)
   {
     changed = false;
@@ -2660,6 +2848,9 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   struct Names
   {
     std::string id, lean, handles, terms, binders, reps, xs, as, valid, valids;
+    /** What is assumed of the arguments beside their handles (`good`):
+     * as hypotheses, as their names, and as the premises of `Spec`. */
+    std::string goodBinders, goods, goodPremises;
   };
   auto names = [&](const LeanProof& p) {
     Names n;
@@ -2677,6 +2868,12 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       n.binders += " (h_" + a + " : Represents.rep s " + a + " x_" + a + ")";
       n.valid += " (hw_" + a + " : Valid.valid x_" + a + ")";
       n.valids += " (by valid_tac hinv h_" + a + ")";
+      if (i < p.good.size() && !p.good[i].empty())
+      {
+        n.goodBinders += " (hg_" + a + " : " + p.good[i] + " x_" + a + ")";
+        n.goods += " hg_" + a;
+        n.goodPremises += " " + p.good[i] + " x_" + a + " →";
+      }
     }
     n.handles = p.nargs == 0 ? "" : " (" + n.as.substr(1) + " : Term)";
     return n;
@@ -2704,7 +2901,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
     {
       o << " Represents.rep s a" << i << " x_a" << i << " →";
     }
-    o << "\n    " << n.id << " s" << n.as
+    o << n.goodPremises << "\n    " << n.id << " s" << n.as
       << " ⦃ r s' => s'.Inv ∧ s.Grows s' ∧\n      match r with\n      | " << ok
       << " t => Represents.rep s' t (" << n.lean << n.xs << ")\n      | " << err
       << " _ => True ⦄div\n\n";
@@ -2730,7 +2927,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
                              + n.terms
                              + "\n    (hinv : s.Inv) (h64 : Platform64) (hrem : "
                                "s.remaining ≤ n)"
-                             + n.binders;
+                             + n.binders + n.goodBinders;
     std::string stuck, facts, notStuck;
     for (size_t i : p->stuck)
     {
@@ -2755,6 +2952,14 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       std::string k = std::to_string(i);
       again += " ∧ Represents.rep s' u" + k + " y" + k;
       ys += " y" + k;
+    }
+    for (size_t i = 0; i < p->nargs; ++i)
+    {
+      // the next round's states are OK (a loop assumes no proof OK)
+      if (p->good[i] == "StateOK")
+      {
+        again += " ∧ StateOK y" + std::to_string(i);
+      }
     }
     std::string defs, cds;
     for (size_t c = 0; c < p->cases.size(); ++c)
@@ -2783,7 +2988,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
         << p->cases[c].unfolds << "\n  have hG := Store.Grows.refl s\n";
       for (const std::string& l : p->cases[c].lines)
       {
-        o << "  " << l << "\n";
+        o << "  " << resolve(l, nullptr) << "\n";
       }
       o << "\n";
     }
@@ -2830,7 +3035,8 @@ void RustMetaReduce::leanProofs(size_t numParts) const
                               + (p->loop ? "_round_step" : "_step");
       return "  " + tac + " with "
              + m.name + "_spec n ih s" + sk + n.as + n.xs + " hinv" + sk
-             + " h64 " + (k == 0 ? "hrem" : "(hG.rem hrem)") + n.reps + notStuck
+             + " h64 " + (k == 0 ? "hrem" : "(hG.rem hrem)") + n.reps + n.goods
+             + notStuck
              + "\n    as ⟨s" + std::to_string(k + 1) + ", hinv"
              + std::to_string(k + 1) + ", hc" + std::to_string(k)
              + "⟩ growing hG carrying" + n.reps
@@ -2947,7 +3153,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       o << "  " << (p->loop ? "round_step" : "case_step") << " with case_" << c
         << "_" << n.id << "_spec n ih s" << st() << n.as << n.xs << " hinv"
         << st() << " h64 " << (store == 0 ? "hrem" : "(hG.rem hrem)") << n.reps
-        << notStuck << "\n    as ⟨s" << store + 1 << ", hinv" << store + 1 << ", hc"
+        << n.goods << notStuck << "\n    as ⟨s" << store + 1 << ", hinv" << store + 1 << ", hc"
         << c << "⟩ growing hG carrying" << n.reps << (p->loop ? " hbud" : "")
         << " using" << facts << "\n";
       facts += " hc" + std::to_string(c);
@@ -2978,16 +3184,18 @@ void RustMetaReduce::leanProofs(size_t numParts) const
       {
         motive << " Represents.rep s a" << i << " x_a" << i << " →";
       }
+      motive << n.goodPremises;
       // stated of the body, whose arguments are in the Rust's order (Aeneas
       // orders the loop function's arguments its own way); the body is the loop
       motive << "\n      body_" << n.id << " s" << n.as << post << result;
       o << "  refine (?_ : " << motive.str() << ") s.budget" << order
-        << " le_rfl hinv hrem" << n.reps << "\n  intro k\n"
+        << " le_rfl hinv hrem" << n.reps << n.goods << "\n  intro k\n"
         << "  refine Nat.strong_induction_on k ?_\n  intro k ihl" << order
-        << " hk hinv hrem" << n.reps << "\n  unfold body_" << n.id << " body_"
+        << " hk hinv hrem" << n.reps << n.goods << "\n  unfold body_" << n.id
+        << " body_"
         << n.id << "_loop"
         << "\n  step with step_" << n.id << "_spec n ih s" << n.as << n.xs
-        << " hinv h64 hrem" << n.reps
+        << " hinv h64 hrem" << n.reps << n.goods
         << " as ⟨r, s1, hinv1, hg1, hr⟩\n  cases r with\n"
            "  | Err e => simp only [WP.dspec_ok, WP.uncurry'_pair]; "
            "exact ⟨hinv1, hg1, trivial⟩\n  | Ok nx =>\n    cases nx with\n"
@@ -3002,6 +3210,13 @@ void RustMetaReduce::leanProofs(size_t numParts) const
         bs += " b" + k;
         ys2 += " y" + k;
         hreps += ", hrep" + k;
+      }
+      for (size_t i = 0; i < p->nargs; ++i)
+      {
+        if (p->good[i] == "StateOK")
+        {
+          hreps += ", hgood" + std::to_string(i);
+        }
       }
       o << "hnext" << hreps << ", heq⟩ := hr\n      simp only\n"
            "      have hlen : next.length = " << p->nargs
@@ -3044,7 +3259,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
                               + n.xs + "))";
     o << "theorem " << n.id << "_spec (n : Nat) (ih : ∀ m < n, Specs m) : "
       << n.id << ".Spec n := by\n  intro s" << n.as << n.xs << " hinv h64 hrem"
-      << n.reps << "\n  unfold " << n.id << "\n  apply WP.dspec_mono (Store."
+      << n.reps << n.goods << "\n  unfold " << n.id << "\n  apply WP.dspec_mono (Store."
       << (p->cache.empty() ? "framed s hinv hrem"
           : !p->typeKind.empty()
               ? "framed_type_cached s hinv hrem h64 cache.TypeCacheKind."
@@ -3092,7 +3307,7 @@ void RustMetaReduce::leanProofs(size_t numParts) const
     }
     o << "    (fun s1 m hinv1 hn hm hrem1 => by\n      spec_exact body_" << n.id
       << "_spec m (ih m hm) s1" << n.as << n.xs << " hinv1 h64 hrem1" << congr
-      << "))\n  rintro ⟨r, s'⟩ h\n  cases r <;> simpa [WP.uncurry'_pair] using h\n\n";
+      << n.goods << "))\n  rintro ⟨r, s'⟩ h\n  cases r <;> simpa [WP.uncurry'_pair] using h\n\n";
   }
   o << "/-- **Every program with a generated proof computes what logos's "
        "function does.** -/\ntheorem specs (n : Nat) : Specs n := by\n"
