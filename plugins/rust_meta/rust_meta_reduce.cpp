@@ -700,9 +700,26 @@ class RustMetaReduce::Emitter
            || std::find(lean.pure.begin(), lean.pure.end(), "hn_" + x)
                   != lean.pure.end();
   }
-  /** `s.apply(f, a)` and its line (`Store.apply_rep`). */
-  std::string leanApply(const std::string& f, const std::string& a)
+  /**
+   * `s.apply(f, a)` and its line. Where lean-meta writes logos's guarded
+   * application `__eo_mk_apply` (`guarded`: the application is evaluatable,
+   * by lean-meta's rule in lean_meta_reduce.cpp), the runtime's `apply` is
+   * that one for one (`Store.apply_mk_rep`) and either part may be stuck;
+   * otherwise logos writes `Term.Apply`, and the parts must not be stuck
+   * (`Store.apply_rep`).
+   */
+  std::string leanApply(const std::string& f, const std::string& a,
+                        bool guarded = false)
   {
+    if (guarded)
+    {
+      std::string st = leanStore(), inv = leanInv();
+      std::string v = val("s.apply(" + f + ", " + a + ")?");
+      leanStoreStep("Store.apply_mk_rep " + st + " " + ln(f) + " " + ln(a)
+                        + " _ _ " + inv + " h64 h_" + ln(f) + " h_" + ln(a),
+                    v);
+      return v;
+    }
     if (!leanNotStuck(f) || !leanNotStuck(a))
     {
       // logos builds the application, the store gives the stuck term:
@@ -1501,9 +1518,10 @@ class RustMetaReduce::Emitter
     {
       std::string st = leanStore(), inv = leanInv();
       std::string v = val("s.literal(" + literal(t) + ")?");
+      // a literal is never the stuck term
+      lean.built.insert(v);
       if (k == Kind::BOOLEAN)
       {
-        lean.built.insert(v);
         leanStoreStep(std::string("Store.literal_boolean_spec ") + st
                           + (t.getValue()->asLiteral()->d_bool ? " true "
                                                                : " false ")
@@ -1785,7 +1803,7 @@ class RustMetaReduce::Emitter
     if (k == Kind::APPLY && t.getNumChildren() == 2)
     {
       std::string f = expr(t[0]), a = expr(t[1]);
-      return leanApply(f, a);
+      return leanApply(f, a, t.isEvaluatable());
     }
     if (k == Kind::VARIABLE)
     {
