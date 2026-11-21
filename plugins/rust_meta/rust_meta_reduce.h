@@ -116,6 +116,12 @@ class RustMetaReduce : public MetaReducePlugin
      * meanings (2^32 for `$eo_typeof`, 2^32 + 1 for `$smtx_typeof`: no
      * program id is that large), and `typeKind` names the kind.
      */
+    /**
+     * A proof written by hand in pathos (Runtime/), applied to what is
+     * proved of the programs called, in place of the generated one; empty
+     * for a generated proof.
+     */
+    std::string handProof;
     std::string cache;
     std::string typeKind;
     std::set<std::string> calls;

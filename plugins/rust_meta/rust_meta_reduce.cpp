@@ -2209,6 +2209,43 @@ std::string RustMetaReduce::emitProgram(const std::string& name,
           << attempt(ident(getName(body[0])) + "(s, guard, term, state)")
           << ";\n}\nOk(state)\n}\n"
           << helpers.str();
+      // The proof of the fold is written by hand (pathos's
+      // Runtime/AssumeFold.lean, invoke_assume_list_spec) for the guard
+      // `(eo::and ($eo_is_bool_type F) ($eo_is_closed F))` and the push
+      // `$eo_push_input_assume_check`, from what is proved of those three.
+      const Expr f = step[2][1];
+      auto isCall = [&](const Expr& x, const char* prog) {
+        return x.getKind() == Kind::APPLY && x.getNumChildren() == 2
+               && x[0].getKind() == Kind::PROGRAM_CONST
+               && getName(x[0]) == prog && x[1] == f;
+      };
+      Expr g = body[1];
+      size_t g0 = 0;
+      bool isAnd = g.getKind() == Kind::EVAL_AND && g.getNumChildren() == 2;
+      if (!isAnd && g.getKind() == Kind::APPLY && g.getNumChildren() == 3
+          && g[0].getKind() == Kind::PROGRAM_CONST
+          && builtin(getName(g[0])) == Kind::EVAL_AND)
+      {
+        isAnd = true;
+        g0 = 1;
+      }
+      if (isAnd && isCall(g[g0], "$eo_is_bool_type")
+          && isCall(g[g0 + 1], "$eo_is_closed")
+          && getName(body[0]) == "$eo_push_input_assume_check" && body[2] == f)
+      {
+        d_leanProofs.emplace_back();
+        LeanProof& lp = d_leanProofs.back();
+        lp.name = name;
+        lp.nargs = 2;
+        lp.calls = {"$eo_is_bool_type", "$eo_is_closed",
+                    "$eo_push_input_assume_check"};
+        auto spec = [&](const char* prog) {
+          return "(fun m hm => (ih m hm)." + ident(prog) + ")";
+        };
+        lp.handProof = "invoke_assume_list_spec n " + spec("$eo_is_bool_type") + " "
+                       + spec("$eo_is_closed") + " "
+                       + spec("$eo_push_input_assume_check");
+      }
       return out.str();
     }
   }
@@ -2682,6 +2719,13 @@ void RustMetaReduce::leanProofs(size_t numParts) const
   for (const LeanProof* p : proved)
   {
     Names n = names(*p);
+    if (!p->handProof.empty())
+    {
+      o << "/-- `" << p->name << "`, by the proof written by hand. -/\ntheorem "
+        << n.id << "_spec (n : Nat) (ih : ∀ m < n, Specs m) : " << n.id
+        << ".Spec n :=\n  " << p->handProof << "\n\n";
+      continue;
+    }
     const std::string head = " (n : Nat) (ih : Specs n) (s : Store)" + n.handles
                              + n.terms
                              + "\n    (hinv : s.Inv) (h64 : Platform64) (hrem : "
